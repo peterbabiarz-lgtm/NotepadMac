@@ -17,6 +17,8 @@
     NSString      *_currentLexer;
     int            _fontSize;
     BOOL           _wordWrap;
+    BOOL           _showEdgeColumn;
+    NSInteger      _edgeColumn;
 }
 
 - (instancetype)initWithDocument:(Document *)document {
@@ -25,6 +27,8 @@
     _document = document;
     _fontSize = 13;
     _wordWrap = NO;
+    _showEdgeColumn = NO;
+    _edgeColumn = 80;
     return self;
 }
 
@@ -45,6 +49,7 @@
     [self applyLexerForDocument];
     [self applyTheme];
     [self reloadContent];
+    [self detectEolMode];
 
     // Set delegate last so no notifications fire during initial setup
     _editor.delegate = self;
@@ -178,6 +183,25 @@
     // Fold margin
     [_editor setColorProperty:SCI_SETFOLDMARGINCOLOUR       parameter:1 value:t.lineNumberBg];
     [_editor setColorProperty:SCI_SETFOLDMARGINHICOLOUR     parameter:1 value:t.lineNumberBg];
+
+    // Brace matching styles: bold + colored foreground on default background
+    [_editor setGeneralProperty:SCI_STYLESETBOLD   parameter:STYLE_BRACELIGHT value:1];
+    [_editor setColorProperty:SCI_STYLESETFORE     parameter:STYLE_BRACELIGHT value:t.braceMatchFg];
+    [_editor setColorProperty:SCI_STYLESETBACK     parameter:STYLE_BRACELIGHT value:t.background];
+    [_editor setGeneralProperty:SCI_STYLESETBOLD   parameter:STYLE_BRACEBAD value:1];
+    [_editor setColorProperty:SCI_STYLESETFORE     parameter:STYLE_BRACEBAD value:t.braceBadFg];
+    [_editor setColorProperty:SCI_STYLESETBACK     parameter:STYLE_BRACEBAD value:t.background];
+
+    // Edge column colour
+    {
+        NSColor *ec = [t.edgeColor colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
+        if (ec) {
+            long clr = (long)(ec.redComponent * 255)
+                     | ((long)(ec.greenComponent * 255) << 8)
+                     | ((long)(ec.blueComponent * 255) << 16);
+            [_editor setGeneralProperty:SCI_SETEDGECOLOUR parameter:clr value:0];
+        }
+    }
 
     // Apply language-specific colours
     [self applyLanguageColors:t];
@@ -336,12 +360,13 @@
 - (void)notification:(SCNotification *)notification {
     if (notification->nmhdr.code == SCN_MODIFIED &&
         (notification->modificationType & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT))) {
-        // Don't copy the full buffer here — read lazily at save time via [_editor string]
         _document.hasUnsavedChanges = YES;
         [_delegate editorDidChangeContent:self];
     } else if (notification->nmhdr.code == SCN_UPDATEUI &&
                (notification->updated & (SC_UPDATE_SELECTION | SC_UPDATE_V_SCROLL | SC_UPDATE_H_SCROLL))) {
-        // Only update status bar when caret/scroll actually changed, not on every paint
+        if (notification->updated & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
+            [self updateBraceHighlight];
+        }
         [_delegate editorDidChangeContent:self];
     }
 }
@@ -389,6 +414,72 @@
 
 - (BOOL)wordWrap {
     return _wordWrap;
+}
+
+// MARK: – Brace matching
+
+- (void)updateBraceHighlight {
+    long pos = [_editor getGeneralProperty:SCI_GETCURRENTPOS];
+
+    // Check the character at the caret and one position before it
+    long checkPos = -1;
+    for (long p = pos; p >= MAX(0, pos - 1); p--) {
+        int ch = (int)[_editor getGeneralProperty:SCI_GETCHARAT parameter:p];
+        if (ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == '(' || ch == ')') {
+            checkPos = p;
+            break;
+        }
+    }
+
+    if (checkPos >= 0) {
+        long matchPos = [_editor getGeneralProperty:SCI_BRACEMATCH parameter:checkPos];
+        if (matchPos >= 0) {
+            [_editor setGeneralProperty:SCI_BRACEHIGHLIGHT parameter:checkPos value:matchPos];
+        } else {
+            [_editor setGeneralProperty:SCI_BRACEBADLIGHT value:checkPos];
+        }
+    } else {
+        // Clear: INVALID_POSITION = -1
+        [_editor setGeneralProperty:SCI_BRACEHIGHLIGHT parameter:-1 value:-1];
+    }
+}
+
+// MARK: – Edge column guide
+
+- (void)setShowEdgeColumn:(BOOL)show column:(NSInteger)column {
+    _showEdgeColumn = show;
+    _edgeColumn = column;
+    [_editor setGeneralProperty:SCI_SETEDGECOLUMN value:column];
+    [_editor setGeneralProperty:SCI_SETEDGEMODE value:show ? EDGE_LINE : EDGE_NONE];
+}
+
+- (BOOL)showEdgeColumn {
+    return _showEdgeColumn;
+}
+
+// MARK: – EOL mode
+
+- (void)detectEolMode {
+    NSString *content = _document.content;
+    if (!content.length) return;
+    NSInteger mode = SC_EOL_LF;
+    if ([content rangeOfString:@"\r\n"].location != NSNotFound) {
+        mode = SC_EOL_CRLF;
+    } else if ([content rangeOfString:@"\r"].location != NSNotFound) {
+        mode = SC_EOL_CR;
+    }
+    [_editor setGeneralProperty:SCI_SETEOLMODE value:mode];
+}
+
+- (NSInteger)eolMode {
+    return [_editor getGeneralProperty:SCI_GETEOLMODE];
+}
+
+- (void)convertToEolMode:(NSInteger)mode {
+    [_editor setGeneralProperty:SCI_SETEOLMODE value:mode];
+    [_editor setGeneralProperty:SCI_CONVERTEOLS value:mode];
+    _document.hasUnsavedChanges = YES;
+    [_delegate editorDidChangeContent:self];
 }
 
 // MARK: – Appearance change

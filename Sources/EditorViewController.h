@@ -35,6 +35,14 @@
 - (void)toggleWordWrap;
 - (BOOL)wordWrap;
 
+// Edge column guide (vertical line at a given column)
+- (void)setShowEdgeColumn:(BOOL)show column:(NSInteger)column;
+- (BOOL)showEdgeColumn;
+
+// EOL mode: SC_EOL_LF=2, SC_EOL_CR=1, SC_EOL_CRLF=0
+- (NSInteger)eolMode;
+- (void)convertToEolMode:(NSInteger)mode;
+
 // Navigation
 - (void)goToLine:(NSInteger)lineNumber;
 

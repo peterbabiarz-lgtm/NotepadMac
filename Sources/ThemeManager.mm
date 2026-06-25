@@ -44,6 +44,9 @@ static NSColor *hex(NSString *h) {
         .selectionBg   = hex(@"B8D6FD"),
         .caretFg       = hex(@"000000"),
         .caretLineBg   = hex(@"EFF5FF"),
+        .braceMatchFg  = hex(@"0066CC"),
+        .braceBadFg    = hex(@"CC0000"),
+        .edgeColor     = hex(@"C8C8C8"),
     };
 }
 
@@ -63,6 +66,9 @@ static NSColor *hex(NSString *h) {
         .selectionBg   = hex(@"264F78"),
         .caretFg       = hex(@"AEAFAD"),
         .caretLineBg   = hex(@"282828"),
+        .braceMatchFg  = hex(@"FFD700"),
+        .braceBadFg    = hex(@"FF4444"),
+        .edgeColor     = hex(@"404040"),
     };
 }
 

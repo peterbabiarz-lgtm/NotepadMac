@@ -16,6 +16,11 @@ typedef struct {
     NSColor *selectionBg;
     NSColor *caretFg;
     NSColor *caretLineBg;
+    // Brace matching
+    NSColor *braceMatchFg;
+    NSColor *braceBadFg;
+    // Edge column guide
+    NSColor *edgeColor;
 } ScintillaTheme;
 
 @interface ThemeManager : NSObject

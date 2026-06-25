@@ -16,6 +16,9 @@ Ein nativer macOS Text-Editor inspiriert von [Notepad++](https://notepad-plus-pl
 - Statusleiste mit Zeile, Spalte, Encoding und Sprache
 - **Auto-Save** beim Fokusverlust (nur bereits gespeicherte Dateien)
 - **Dateivergleich** (Ansicht → Dateien vergleichen…) – vertikale Split-Ansicht mit farbiger Diff-Hervorhebung (grün = hinzugefügt, rot = gelöscht, orange = geändert) und synchronem Scrollen
+- **Brace-Matching** – passende Klammern `{[()]}` werden beim Cursor farbig hervorgehoben (blau = gefunden, rot = kein Match)
+- **Linienlängen-Guide** (Ansicht → Edge Column at 80) – vertikale Orientierungslinie bei Spalte 80, umschaltbar
+- **EOL-Konvertierung** (Format → Line Endings) – zwischen Unix (LF), Windows (CRLF) und Classic Mac (CR) konvertieren; aktueller Modus in der Statusleiste sichtbar
 
 ## Installation
 

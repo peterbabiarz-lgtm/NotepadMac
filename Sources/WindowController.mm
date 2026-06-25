@@ -6,6 +6,7 @@
 #import "CompareViewController.h"
 #import "Document.h"
 #import "LexerManager.h"
+#include "Scintilla.h"
 
 @interface WindowController () <NSTabViewDelegate, EditorViewControllerDelegate>
 @end
@@ -161,6 +162,20 @@ static const NSInteger kMaxRecentFiles = 10;
     fif.target = self;
     [editMenu addItemWithTitle:@"Go to Line…"  action:@selector(menuGoToLine:)  keyEquivalent:@"g"].target = self;
 
+    // ── Format menu ───────────────────────────────────────────────────────
+    NSMenuItem *fmtItem = [[NSMenuItem alloc] initWithTitle:@"Format" action:nil keyEquivalent:@""];
+    [mainMenu addItem:fmtItem];
+    NSMenu *fmtMenu = [[NSMenu alloc] initWithTitle:@"Format"];
+    fmtItem.submenu = fmtMenu;
+
+    NSMenuItem *eolParent = [[NSMenuItem alloc] initWithTitle:@"Line Endings" action:nil keyEquivalent:@""];
+    NSMenu *eolMenu = [[NSMenu alloc] initWithTitle:@"Line Endings"];
+    eolParent.submenu = eolMenu;
+    [fmtMenu addItem:eolParent];
+    [[eolMenu addItemWithTitle:@"Unix (LF)"       action:@selector(menuSetEolLF:)   keyEquivalent:@""] setTarget:self];
+    [[eolMenu addItemWithTitle:@"Windows (CRLF)"  action:@selector(menuSetEolCRLF:) keyEquivalent:@""] setTarget:self];
+    [[eolMenu addItemWithTitle:@"Classic Mac (CR)" action:@selector(menuSetEolCR:)  keyEquivalent:@""] setTarget:self];
+
     // ── View menu ─────────────────────────────────────────────────────────
     NSMenuItem *viewItem = [[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""];
     [mainMenu addItem:viewItem];
@@ -171,6 +186,7 @@ static const NSInteger kMaxRecentFiles = 10;
     [viewMenu addItemWithTitle:@"Reset Font Size"    action:@selector(menuFontReset:)   keyEquivalent:@"0"].target = self;
     [viewMenu addItem:[NSMenuItem separatorItem]];
     [viewMenu addItemWithTitle:@"Word Wrap" action:@selector(menuToggleWrap:) keyEquivalent:@""].target = self;
+    [viewMenu addItemWithTitle:@"Edge Column at 80" action:@selector(menuToggleEdgeColumn:) keyEquivalent:@""].target = self;
     [viewMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *palette = [viewMenu addItemWithTitle:@"Command Palette"
                                               action:@selector(menuCommandPalette:)
@@ -377,9 +393,48 @@ static const NSInteger kMaxRecentFiles = 10;
     EditorViewController *evc = [self currentEditor];
     if (!evc) return;
     [evc toggleWordWrap];
-    // Update checkmark
     NSMenuItem *item = (NSMenuItem *)sender;
     item.state = evc.wordWrap ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (IBAction)menuToggleEdgeColumn:(id)sender {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    BOOL next = !evc.showEdgeColumn;
+    [evc setShowEdgeColumn:next column:80];
+    NSMenuItem *item = (NSMenuItem *)sender;
+    item.state = next ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (IBAction)menuSetEolLF:(id)sender   { [[self currentEditor] convertToEolMode:SC_EOL_LF]; }
+- (IBAction)menuSetEolCRLF:(id)sender { [[self currentEditor] convertToEolMode:SC_EOL_CRLF]; }
+- (IBAction)menuSetEolCR:(id)sender   { [[self currentEditor] convertToEolMode:SC_EOL_CR]; }
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    SEL a = item.action;
+    EditorViewController *evc = [self currentEditor];
+
+    if (a == @selector(menuToggleEdgeColumn:)) {
+        item.state = evc.showEdgeColumn ? NSControlStateValueOn : NSControlStateValueOff;
+        return evc != nil;
+    }
+    if (a == @selector(menuToggleWrap:)) {
+        item.state = evc.wordWrap ? NSControlStateValueOn : NSControlStateValueOff;
+        return evc != nil;
+    }
+    if (a == @selector(menuSetEolLF:)) {
+        item.state = (evc.eolMode == SC_EOL_LF) ? NSControlStateValueOn : NSControlStateValueOff;
+        return evc != nil;
+    }
+    if (a == @selector(menuSetEolCRLF:)) {
+        item.state = (evc.eolMode == SC_EOL_CRLF) ? NSControlStateValueOn : NSControlStateValueOff;
+        return evc != nil;
+    }
+    if (a == @selector(menuSetEolCR:)) {
+        item.state = (evc.eolMode == SC_EOL_CR) ? NSControlStateValueOn : NSControlStateValueOff;
+        return evc != nil;
+    }
+    return YES;
 }
 
 // MARK: – Helpers
@@ -419,10 +474,12 @@ static const NSInteger kMaxRecentFiles = 10;
     NSString *lang = [[LexerManager shared] languageNameForExtension:
                       evc.document.fileURL.pathExtension ?: @""];
     NSString *enc  = [NSString localizedNameOfStringEncoding:evc.document.encoding];
+    NSInteger eol  = [evc eolMode];
+    NSString *eolStr = (eol == SC_EOL_CRLF) ? @"CRLF" : (eol == SC_EOL_CR) ? @"CR" : @"LF";
     _statusLabel.stringValue = [NSString stringWithFormat:
-        @"Ln %ld, Col %ld  |  %@  |  %@  |  Lines: %ld",
+        @"Ln %ld, Col %ld  |  %@  |  %@  |  %@  |  Lines: %ld",
         (long)[evc currentLine], (long)[evc currentColumn],
-        enc, lang, (long)[evc totalLines]];
+        enc, lang, eolStr, (long)[evc totalLines]];
 }
 
 
