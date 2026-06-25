@@ -49,6 +49,10 @@ static const NSInteger kMaxRecentFiles = 10;
     return self;
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
 // MARK: – UI Construction
 
 - (void)buildUI {
@@ -237,10 +241,28 @@ static const NSInteger kMaxRecentFiles = 10;
         [alert addButtonWithTitle:@"Don't Save"];
         [alert addButtonWithTitle:@"Cancel"];
         NSModalResponse r = [alert runModal];
+        if (r == NSAlertThirdButtonReturn) return;
         if (r == NSAlertFirstButtonReturn) {
-            [self saveDocument:evc];
-        } else if (r == NSAlertThirdButtonReturn) {
-            return;
+            if (!evc.document.fileURL) {
+                // Untitled doc: the close alert has ended, so we can safely run
+                // the save panel now without nesting two runModal calls.
+                NSSavePanel *panel = [NSSavePanel savePanel];
+                panel.nameFieldStringValue = evc.document.displayName;
+                if ([panel runModal] != NSModalResponseOK) return;
+                evc.document.content = [evc currentContent];
+                NSError *saveErr;
+                if (![evc.document saveToURL:panel.URL error:&saveErr]) {
+                    [[NSAlert alertWithError:saveErr] runModal];
+                    return;
+                }
+            } else {
+                evc.document.content = [evc currentContent];
+                NSError *saveErr;
+                if (![evc.document save:&saveErr]) {
+                    [[NSAlert alertWithError:saveErr] runModal];
+                    return;
+                }
+            }
         }
     }
 
@@ -380,6 +402,7 @@ static const NSInteger kMaxRecentFiles = 10;
 - (void)updateCurrentTabTitle {
     NSTabViewItem *sel = _tabView.selectedTabViewItem;
     if (!sel) return;
+    if (![sel.identifier isKindOfClass:[EditorViewController class]]) return;
     EditorViewController *evc = (EditorViewController *)sel.identifier;
     NSString *name = evc.document.displayName;
     sel.label = evc.document.hasUnsavedChanges ? [name stringByAppendingString:@" •"] : name;
@@ -409,6 +432,7 @@ static const NSInteger kMaxRecentFiles = 10;
     NSMutableArray<NSString *> *paths = [NSMutableArray array];
     for (NSInteger i = 0; i < _tabView.numberOfTabViewItems; i++) {
         NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
+        if (![item.identifier isKindOfClass:[EditorViewController class]]) continue;
         EditorViewController *evc = (EditorViewController *)item.identifier;
         if (evc.document.fileURL) {
             [paths addObject:evc.document.fileURL.path];

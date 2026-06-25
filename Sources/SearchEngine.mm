@@ -151,9 +151,11 @@
         scanned++;
         NSString *path = url.path;
 
-        // Read as text; skip binary files
+        // Read as text; skip binary files.
+        // usedEncoding: requires a non-nil pointer — passing nil is undefined behavior.
+        NSStringEncoding detectedEncoding;
         NSString *content = [NSString stringWithContentsOfFile:path
-                                                  usedEncoding:nil
+                                                  usedEncoding:&detectedEncoding
                                                          error:nil];
         if (!content) continue;
 

@@ -44,7 +44,13 @@ static int untitledCounter = 0;
 }
 
 - (BOOL)saveToURL:(NSURL *)url error:(NSError **)error {
-    NSData *data = [_content dataUsingEncoding:_encoding allowLossyConversion:YES];
+    NSData *data = [_content dataUsingEncoding:_encoding allowLossyConversion:NO];
+    if (!data) {
+        // Content has characters not representable in the detected encoding.
+        // Fall back to UTF-8 rather than silently corrupting characters.
+        _encoding = NSUTF8StringEncoding;
+        data = [_content dataUsingEncoding:_encoding allowLossyConversion:NO];
+    }
     if (![data writeToURL:url options:NSDataWritingAtomic error:error]) return NO;
     _fileURL = url;
     _hasUnsavedChanges = NO;

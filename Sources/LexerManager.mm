@@ -168,16 +168,13 @@
     return self;
 }
 
-- (const char *)lexerNameForExtension:(NSString *)ext {
+- (NSString *)lexerNameForExtension:(NSString *)ext {
     NSString *lower = [ext lowercaseString];
-    NSString *lexer = _extToLexer[lower];
-    if (!lexer) lexer = @"null";
-    return [lexer UTF8String];
+    return _extToLexer[lower] ?: @"null";
 }
 
-- (NSArray<NSString *> *)keywordsForLexer:(const char *)lexerName {
-    NSString *key = [NSString stringWithUTF8String:lexerName];
-    NSArray<NSString *> *kws = _lexerKeywords[key];
+- (NSArray<NSString *> *)keywordsForLexer:(NSString *)lexerName {
+    NSArray<NSString *> *kws = _lexerKeywords[lexerName];
     if (!kws) kws = @[@""];
     return kws;
 }

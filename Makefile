@@ -78,10 +78,13 @@ ALL_OBJS := $(SCI_OBJS) $(SCI_COC_OBJS) $(LEX_OBJS) $(APP_OBJS) $(APP_CXX_OBJ)
 # ── Targets ──────────────────────────────────────────────────────────────────
 .PHONY: all clean run
 
-all: $(APP_DIR)/Contents/MacOS/NotepadMac $(CONTENTS)/Info.plist
+all: $(APP_DIR)/Contents/MacOS/NotepadMac $(CONTENTS)/Info.plist $(RES_DIR)/AppIcon.icns
 
 # Always copy Info.plist so version changes take effect without a full relink
 $(CONTENTS)/Info.plist: Resources/Info.plist | dirs
+	cp $< $@
+
+$(RES_DIR)/AppIcon.icns: Resources/AppIcon.icns | dirs
 	cp $< $@
 
 # Link
@@ -89,6 +92,7 @@ $(APP_DIR)/Contents/MacOS/NotepadMac: $(ALL_OBJS) | dirs
 	@echo "[LINK] NotepadMac"
 	$(CXX) $(ALL_OBJS) $(LDFLAGS) -o $@
 	cp Resources/Info.plist $(CONTENTS)/Info.plist
+	cp Resources/AppIcon.icns $(RES_DIR)/AppIcon.icns
 	@echo ""
 	@echo "✓ Built: $(APP_DIR)"
 	@echo "  Run with:  open $(APP_DIR)"

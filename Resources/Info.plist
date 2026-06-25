@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.notepadmac.app</string>
     <key>CFBundleVersion</key>
-    <string>1.4.0</string>
+    <string>1.4.1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.4</string>
+    <string>1.4.1</string>
     <key>CFBundleExecutable</key>
     <string>NotepadMac</string>
     <key>CFBundlePackageType</key>
@@ -72,5 +72,7 @@
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
 </dict>
 </plist>

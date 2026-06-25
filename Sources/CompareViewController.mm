@@ -126,10 +126,12 @@ static const int kMarkerChanged = 2;
         [ed setColorProperty:SCI_SETSELBACK parameter:1 value:t.selectionBg];
 
         NSColor *clb = [t.caretLineBg colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
-        long clr = (long)(clb.redComponent * 255)
-                 | ((long)(clb.greenComponent * 255) << 8)
-                 | ((long)(clb.blueComponent * 255) << 16);
-        [ed setGeneralProperty:SCI_SETCARETLINEBACK parameter:clr value:0];
+        if (clb) {
+            long clr = (long)(clb.redComponent * 255)
+                     | ((long)(clb.greenComponent * 255) << 8)
+                     | ((long)(clb.blueComponent * 255) << 16);
+            [ed setGeneralProperty:SCI_SETCARETLINEBACK parameter:clr value:0];
+        }
 
         // Diff markers: background-fill style
         [ed setGeneralProperty:SCI_MARKERDEFINE parameter:kMarkerAdded   value:SC_MARK_BACKGROUND];

@@ -7,26 +7,47 @@
 
 + (NSArray<DiffHunk *> *)diffLeft:(NSString *)left right:(NSString *)right {
     NSString *tmpDir = NSTemporaryDirectory();
-    NSString *leftPath  = [tmpDir stringByAppendingPathComponent:@"_nmdiff_a.txt"];
-    NSString *rightPath = [tmpDir stringByAppendingPathComponent:@"_nmdiff_b.txt"];
+    NSString *uid    = [[NSUUID UUID] UUIDString];
+    NSString *leftPath  = [tmpDir stringByAppendingPathComponent:[uid stringByAppendingString:@"_a.txt"]];
+    NSString *rightPath = [tmpDir stringByAppendingPathComponent:[uid stringByAppendingString:@"_b.txt"]];
+    NSString *outPath   = [tmpDir stringByAppendingPathComponent:[uid stringByAppendingString:@"_out.txt"]];
+
+    NSFileManager *fm = [NSFileManager defaultManager];
 
     [left  writeToFile:leftPath  atomically:YES encoding:NSUTF8StringEncoding error:nil];
     [right writeToFile:rightPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
-    NSTask *task  = [NSTask new];
-    task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/diff"];
-    task.arguments     = @[leftPath, rightPath];
+    // Write stdout to a file instead of a pipe so we avoid a pipe-buffer deadlock
+    // on large diffs (the child would block writing once the ~64 KB buffer fills).
+    [@"" writeToFile:outPath atomically:NO encoding:NSUTF8StringEncoding error:nil];
+    NSFileHandle *outHandle = [NSFileHandle fileHandleForWritingAtPath:outPath];
 
-    NSPipe *pipe = [NSPipe pipe];
-    task.standardOutput = pipe;
+    NSTask *task = [NSTask new];
+    task.executableURL  = [NSURL fileURLWithPath:@"/usr/bin/diff"];
+    task.arguments      = @[leftPath, rightPath];
+    task.standardOutput = outHandle;
     task.standardError  = [NSFileHandle fileHandleWithNullDevice];
 
     NSError *err;
-    [task launchAndReturnError:&err];
-    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-    [task waitUntilExit];
+    BOOL launched = [task launchAndReturnError:&err];
+    if (!launched) {
+        NSLog(@"DiffEngine: failed to launch /usr/bin/diff: %@", err.localizedDescription);
+        [fm removeItemAtPath:leftPath  error:nil];
+        [fm removeItemAtPath:rightPath error:nil];
+        [fm removeItemAtPath:outPath   error:nil];
+        return @[];
+    }
 
-    NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+    [task waitUntilExit];
+    [outHandle closeFile];
+
+    NSString *output = [NSString stringWithContentsOfFile:outPath
+                                                 encoding:NSUTF8StringEncoding
+                                                    error:nil] ?: @"";
+    [fm removeItemAtPath:leftPath  error:nil];
+    [fm removeItemAtPath:rightPath error:nil];
+    [fm removeItemAtPath:outPath   error:nil];
+
     return [self parseOutput:output];
 }
 

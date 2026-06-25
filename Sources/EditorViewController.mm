@@ -122,17 +122,16 @@
 - (void)applyLexerForDocument {
     NSString *ext = _document.fileURL.pathExtension ?: @"";
     LexerManager *lm = [LexerManager shared];
-    const char *lexerName = [lm lexerNameForExtension:ext];
-    _currentLexer = [NSString stringWithUTF8String:lexerName];
+    _currentLexer = [lm lexerNameForExtension:ext];
 
-    // Set lexer via Lexilla static API
-    Scintilla::ILexer5 *lexer = CreateLexer(lexerName);
+    // Set lexer via Lexilla static API. Keep the const char* alive via _currentLexer.
+    Scintilla::ILexer5 *lexer = CreateLexer(_currentLexer.UTF8String);
     if (lexer) {
         [_editor setReferenceProperty:SCI_SETILEXER parameter:0 value:lexer];
     }
 
     // Keywords
-    NSArray<NSString *> *keywords = [lm keywordsForLexer:lexerName];
+    NSArray<NSString *> *keywords = [lm keywordsForLexer:_currentLexer];
     for (NSUInteger i = 0; i < keywords.count; i++) {
         const char *kw = [keywords[i] UTF8String];
         [_editor setReferenceProperty:SCI_SETKEYWORDS parameter:(long)i value:kw];
@@ -163,10 +162,12 @@
     // so we must pass it as the parameter argument, not via setColorProperty.
     {
         NSColor *c = [t.caretLineBg colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
-        long clr = (long)(c.redComponent * 255)
-                 | ((long)(c.greenComponent * 255) << 8)
-                 | ((long)(c.blueComponent * 255) << 16);
-        [_editor setGeneralProperty:SCI_SETCARETLINEBACK parameter:clr value:0];
+        if (c) {
+            long clr = (long)(c.redComponent * 255)
+                     | ((long)(c.greenComponent * 255) << 8)
+                     | ((long)(c.blueComponent * 255) << 16);
+            [_editor setGeneralProperty:SCI_SETCARETLINEBACK parameter:clr value:0];
+        }
     }
     [_editor setColorProperty:SCI_SETSELBACK parameter:1 value:t.selectionBg];
 
@@ -357,7 +358,7 @@
     NSInteger total = [_editor getGeneralProperty:SCI_GETLINECOUNT];
     NSInteger line  = MAX(1, MIN(lineNumber, total)) - 1; // SCI is 0-based
     [_editor setGeneralProperty:SCI_GOTOLINE parameter:line value:0];
-    [self.view.window makeFirstResponder:_editor];
+    [self.view.window makeFirstResponder:[_editor content]];
 }
 
 // MARK: – Font size

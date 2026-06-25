@@ -101,6 +101,26 @@ Nach der Implementierung wurde ein automatisches Code-Review durchgeführt, das 
 
 Alle 9 wurden in v1.1.0 behoben.
 
+### Code-Review v1.4.1
+
+Ein zweites Code-Review (13 Findings) wurde in v1.4.1 vollständig behoben:
+
+| # | Datei | Problem | Schwere |
+|---|-------|---------|---------|
+| 1 | `SearchEngine.mm` | `usedEncoding:nil` → Crash (EXC_BAD_ACCESS auf macOS ≤12) | Kritisch |
+| 2 | `WindowController.mm` | Verschachtelte `runModal`-Aufrufe beim Schließen ungespeicherter Untitled-Tabs | Kritisch |
+| 3 | `DiffEngine.mm` | Deadlock bei Diff-Output >64 KB (Pipe-Puffer-Overflow) | Hoch |
+| 4 | `DiffEngine.mm` | Race Condition: fixe Temp-Pfade bei parallelen Vergleichen | Hoch |
+| 5 | `LexerManager.mm` | Dangling `const char*` aus `UTF8String` einer autoreleased NSString | Hoch |
+| 6 | `Document.mm` | `allowLossyConversion:YES` korrumpierte Unicode-Zeichen lautlos beim Speichern | Hoch |
+| 7 | `DiffEngine.mm` | `launchAndReturnError:` Fehler wurde ignoriert → stille Fehler | Mittel |
+| 8 | `DiffEngine.mm` | Temporäre Diff-Dateien wurden nie gelöscht (Disk-Leak) | Mittel |
+| 9 | `EditorViewController.mm` | `goToLine:` setzte First Responder auf Container statt inneren Editor-View | Mittel |
+| 10 | `EditorViewController.mm` | `colorUsingColorSpace:` Nil-Dereference ohne nil-Guard | Mittel |
+| 11 | `WindowController.mm` | Ungeprüfter Cast auf Tab-Identifier in `updateCurrentTabTitle`/`saveSession` | Mittel |
+| 12 | `WindowController.mm` | Notification-Observer `NMOpenFileAtLine` wurde in `dealloc` nie entfernt | Mittel |
+| 13 | `CompareViewController.mm` | Gleiche `colorUsingColorSpace:` Nil-Dereference wie #10 | Mittel |
+
 ## Lizenz
 
 MIT

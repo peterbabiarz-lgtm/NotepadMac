@@ -1,0 +1,101 @@
+<svg width="1024" height="1024" viewBox="0 0 680 680" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>NotepadMac App Icon – Grumpy Cat holding a notebook</title>
+<desc>A grumpy cat character holding a notebook in front, designed as a macOS app icon</desc>
+
+<defs>
+  <clipPath id="iconClip">
+    <rect x="90" y="40" width="500" height="600" rx="90"/>
+  </clipPath>
+</defs>
+
+<!-- Icon background -->
+<rect x="90" y="40" width="500" height="600" rx="90" fill="#F5F0E8"/>
+
+<!-- CAT BODY (behind notebook) -->
+<ellipse cx="340" cy="410" rx="130" ry="100" fill="#C8A882"/>
+<ellipse cx="340" cy="425" rx="75" ry="65" fill="#E8D5B8"/>
+
+<!-- CAT ARMS (behind notebook) -->
+<path d="M 215 380 Q 185 400 182 450 Q 180 475 205 490" fill="none" stroke="#C8A882" stroke-width="28" stroke-linecap="round"/>
+<ellipse cx="205" cy="498" rx="22" ry="16" fill="#C8A882"/>
+<ellipse cx="191" cy="507" rx="9" ry="7" fill="#C8A882"/>
+<ellipse cx="205" cy="511" rx="9" ry="7" fill="#C8A882"/>
+<ellipse cx="219" cy="507" rx="9" ry="7" fill="#C8A882"/>
+
+<path d="M 465 380 Q 495 400 498 450 Q 500 475 475 490" fill="none" stroke="#C8A882" stroke-width="28" stroke-linecap="round"/>
+<ellipse cx="475" cy="498" rx="22" ry="16" fill="#C8A882"/>
+<ellipse cx="461" cy="507" rx="9" ry="7" fill="#C8A882"/>
+<ellipse cx="475" cy="511" rx="9" ry="7" fill="#C8A882"/>
+<ellipse cx="489" cy="507" rx="9" ry="7" fill="#C8A882"/>
+
+<!-- TAIL -->
+<path d="M 455 500 Q 530 520 540 570 Q 545 600 510 610 Q 480 618 470 590" fill="none" stroke="#C8A882" stroke-width="24" stroke-linecap="round"/>
+<ellipse cx="469" cy="585" rx="20" ry="15" fill="#E8D5B8"/>
+
+<!-- NOTEBOOK (in front of body) -->
+<rect x="195" y="345" width="290" height="220" rx="8" fill="#2B6CB0"/>
+<rect x="195" y="345" width="28" height="220" rx="0" fill="#1A4A80"/>
+<line x1="245" y1="395" x2="455" y2="395" stroke="#7BB8E8" stroke-width="3" stroke-linecap="round"/>
+<line x1="245" y1="420" x2="455" y2="420" stroke="#7BB8E8" stroke-width="3" stroke-linecap="round"/>
+<line x1="245" y1="445" x2="455" y2="445" stroke="#7BB8E8" stroke-width="3" stroke-linecap="round"/>
+<line x1="245" y1="470" x2="400" y2="470" stroke="#7BB8E8" stroke-width="3" stroke-linecap="round"/>
+<ellipse cx="222" cy="373" rx="8" ry="11" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+<ellipse cx="222" cy="403" rx="8" ry="11" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+<ellipse cx="222" cy="433" rx="8" ry="11" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+<ellipse cx="222" cy="463" rx="8" ry="11" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+<ellipse cx="222" cy="493" rx="8" ry="11" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+<ellipse cx="222" cy="523" rx="8" ry="11" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+
+<!-- CAT HEAD (on top) -->
+<polygon points="195,150 165,80 240,135" fill="#C8A882"/>
+<polygon points="198,143 178,95 232,133" fill="#E8A0A0"/>
+<polygon points="485,150 515,80 440,135" fill="#C8A882"/>
+<polygon points="482,143 502,95 448,133" fill="#E8A0A0"/>
+
+<ellipse cx="340" cy="245" rx="145" ry="130" fill="#C8A882"/>
+
+<!-- Forehead stripes -->
+<path d="M 310 135 Q 315 120 320 135" fill="none" stroke="#A07850" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M 335 130 Q 340 115 345 130" fill="none" stroke="#A07850" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M 360 135 Q 365 120 370 135" fill="none" stroke="#A07850" stroke-width="2.5" stroke-linecap="round"/>
+
+<!-- Cheek markings -->
+<path d="M 240 195 Q 250 190 255 200" fill="none" stroke="#A07850" stroke-width="3" stroke-linecap="round"/>
+<path d="M 235 210 Q 248 203 255 215" fill="none" stroke="#A07850" stroke-width="3" stroke-linecap="round"/>
+<path d="M 440 195 Q 430 190 425 200" fill="none" stroke="#A07850" stroke-width="3" stroke-linecap="round"/>
+<path d="M 445 210 Q 432 203 425 215" fill="none" stroke="#A07850" stroke-width="3" stroke-linecap="round"/>
+
+<!-- Eyes -->
+<ellipse cx="290" cy="230" rx="35" ry="28" fill="white"/>
+<ellipse cx="390" cy="230" rx="35" ry="28" fill="white"/>
+<ellipse cx="290" cy="235" rx="18" ry="22" fill="#2D5A1B"/>
+<ellipse cx="290" cy="235" rx="9" ry="14" fill="#111"/>
+<circle cx="296" cy="225" r="5" fill="white"/>
+<ellipse cx="390" cy="235" rx="18" ry="22" fill="#2D5A1B"/>
+<ellipse cx="390" cy="235" rx="9" ry="14" fill="#111"/>
+<circle cx="396" cy="225" r="5" fill="white"/>
+
+<!-- Grumpy eyebrows -->
+<line x1="258" y1="197" x2="320" y2="210" stroke="#7A5030" stroke-width="7" stroke-linecap="round"/>
+<line x1="422" y1="197" x2="360" y2="210" stroke="#7A5030" stroke-width="7" stroke-linecap="round"/>
+
+<!-- Nose -->
+<polygon points="340,272 328,262 352,262" fill="#D4709A"/>
+<circle cx="336" cy="265" r="4" fill="#F0A0C0" opacity="0.6"/>
+
+<!-- Mouth -->
+<path d="M 305 297 Q 340 280 375 297" fill="none" stroke="#8B5030" stroke-width="4" stroke-linecap="round"/>
+<path d="M 305 297 Q 298 307 300 317" fill="none" stroke="#8B5030" stroke-width="4" stroke-linecap="round"/>
+<path d="M 375 297 Q 382 307 380 317" fill="none" stroke="#8B5030" stroke-width="4" stroke-linecap="round"/>
+
+<!-- Whiskers -->
+<line x1="220" y1="275" x2="308" y2="283" stroke="#5A4030" stroke-width="2" stroke-linecap="round"/>
+<line x1="215" y1="290" x2="308" y2="290" stroke="#5A4030" stroke-width="2" stroke-linecap="round"/>
+<line x1="220" y1="305" x2="308" y2="297" stroke="#5A4030" stroke-width="2" stroke-linecap="round"/>
+<line x1="460" y1="275" x2="372" y2="283" stroke="#5A4030" stroke-width="2" stroke-linecap="round"/>
+<line x1="465" y1="290" x2="372" y2="290" stroke="#5A4030" stroke-width="2" stroke-linecap="round"/>
+<line x1="460" y1="305" x2="372" y2="297" stroke="#5A4030" stroke-width="2" stroke-linecap="round"/>
+
+<!-- Bottom shadow strip -->
+<rect x="90" y="608" width="500" height="32" rx="0" fill="#E8D0B0" clip-path="url(#iconClip)"/>
+</svg>
