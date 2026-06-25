@@ -14,6 +14,8 @@ Ein nativer macOS Text-Editor inspiriert von [Notepad++](https://notepad-plus-pl
 - Zuletzt geöffnete Dateien
 - Session-Wiederherstellung beim nächsten Start
 - Statusleiste mit Zeile, Spalte, Encoding und Sprache
+- **Auto-Save** beim Fokusverlust (nur bereits gespeicherte Dateien)
+- **Dateivergleich** (Ansicht → Dateien vergleichen…) – vertikale Split-Ansicht mit farbiger Diff-Hervorhebung (grün = hinzugefügt, rot = gelöscht, orange = geändert) und synchronem Scrollen
 
 ## Installation
 
