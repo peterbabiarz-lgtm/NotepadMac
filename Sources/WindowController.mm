@@ -1,6 +1,7 @@
 #import "WindowController.h"
 #import "EditorViewController.h"
 #import "FindReplacePanel.h"
+#import "FindInFilesPanel.h"
 #import "Document.h"
 #import "LexerManager.h"
 
@@ -37,6 +38,10 @@ static const NSInteger kMaxRecentFiles = 10;
     _editors = [NSMutableArray array];
     [self buildUI];
     [self buildMenuBar];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(openFileAtLine:)
+                                                 name:@"NMOpenFileAtLine"
+                                               object:nil];
     return self;
 }
 
@@ -141,7 +146,11 @@ static const NSInteger kMaxRecentFiles = 10;
     [editMenu addItemWithTitle:@"Paste"      action:@selector(paste:)     keyEquivalent:@"v"];
     [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
     [editMenu addItem:[NSMenuItem separatorItem]];
-    [editMenu addItemWithTitle:@"Find…"        action:@selector(menuFind:)      keyEquivalent:@"f"].target = self;
+    [editMenu addItemWithTitle:@"Find…"          action:@selector(menuFind:)        keyEquivalent:@"f"].target = self;
+    NSMenuItem *fif = [editMenu addItemWithTitle:@"Find in Files…"
+                                          action:@selector(menuFindInFiles:)
+                                   keyEquivalent:@"F"];  // ⇧⌘F
+    fif.target = self;
     [editMenu addItemWithTitle:@"Go to Line…"  action:@selector(menuGoToLine:)  keyEquivalent:@"g"].target = self;
 
     // ── View menu ─────────────────────────────────────────────────────────
@@ -275,6 +284,37 @@ static const NSInteger kMaxRecentFiles = 10;
 - (IBAction)menuCloseTab:(id)sender {
     NSInteger idx = [_tabView indexOfTabViewItem:_tabView.selectedTabViewItem];
     [self closeTabAtIndex:idx];
+}
+
+- (IBAction)menuFindInFiles:(id)sender {
+    [[FindInFilesPanel shared] showPanel];
+}
+
+- (void)openFileAtLine:(NSNotification *)note {
+    NSString *path = note.userInfo[@"path"];
+    NSInteger line = [note.userInfo[@"line"] integerValue];
+    if (!path) return;
+
+    // Check if already open in a tab
+    for (NSInteger i = 0; i < _tabView.numberOfTabViewItems; i++) {
+        NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
+        if (![item.identifier isKindOfClass:[EditorViewController class]]) continue;
+        EditorViewController *evc = (EditorViewController *)item.identifier;
+        if ([evc.document.fileURL.path isEqual:path]) {
+            [_tabView selectTabViewItemAtIndex:i];
+            [evc goToLine:line];
+            return;
+        }
+    }
+    // Not open yet — open it
+    NSError *err;
+    Document *doc = [[Document alloc] initWithURL:[NSURL fileURLWithPath:path] error:&err];
+    if (doc) {
+        [self openDocument:doc];
+        [[self currentEditor] goToLine:line];
+    } else if (err) {
+        [[NSAlert alertWithError:err] runModal];
+    }
 }
 
 - (IBAction)menuFind:(id)sender {
