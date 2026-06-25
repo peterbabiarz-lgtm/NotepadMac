@@ -38,4 +38,7 @@
 // Navigation
 - (void)goToLine:(NSInteger)lineNumber;
 
+// Focus
+- (void)focusEditor;
+
 @end

@@ -3,6 +3,7 @@
 #import "FindReplacePanel.h"
 #import "FindInFilesPanel.h"
 #import "CommandPalettePanel.h"
+#import "CompareViewController.h"
 #import "Document.h"
 #import "LexerManager.h"
 
@@ -18,6 +19,7 @@ static const NSInteger kMaxRecentFiles = 10;
     FindReplacePanel      *_findPanel;
     NSMutableArray<EditorViewController *> *_editors;
     NSMenu                *_recentFilesMenu;
+    NSMutableArray        *_compareControllers;  // keeps CompareViewControllers alive
 }
 
 - (instancetype)init {
@@ -37,6 +39,7 @@ static const NSInteger kMaxRecentFiles = 10;
     self = [super initWithWindow:win];
     if (!self) return nil;
     _editors = [NSMutableArray array];
+    _compareControllers = [NSMutableArray array];
     [self buildUI];
     [self buildMenuBar];
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -170,6 +173,8 @@ static const NSInteger kMaxRecentFiles = 10;
                                        keyEquivalent:@"P"];   // ⌘⇧P
     palette.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
     palette.target = self;
+    [viewMenu addItem:[NSMenuItem separatorItem]];
+    [viewMenu addItemWithTitle:@"Compare Files…" action:@selector(menuCompare:) keyEquivalent:@""].target = self;
 
     // ── Window menu ───────────────────────────────────────────────────────
     NSMenuItem *winItem = [[NSMenuItem alloc] initWithTitle:@"Window" action:nil keyEquivalent:@""];
@@ -513,6 +518,103 @@ static const NSInteger kMaxRecentFiles = 10;
         [self updateCurrentTabTitle];
         [self updateStatusBar];
     });
+}
+
+// MARK: – Auto-save
+
+- (void)autoSaveAll {
+    for (EditorViewController *evc in _editors) {
+        if (!evc.document.fileURL || !evc.document.hasUnsavedChanges) continue;
+        evc.document.content = [evc currentContent];
+        NSError *err;
+        if ([evc.document save:&err]) {
+            // Update tab title to remove unsaved-changes marker
+            dispatch_async(dispatch_get_main_queue(), ^{
+                for (NSInteger i = 0; i < _tabView.numberOfTabViewItems; i++) {
+                    NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
+                    if (item.identifier == evc) {
+                        item.label = evc.document.displayName;
+                        break;
+                    }
+                }
+            });
+        }
+    }
+}
+
+// MARK: – Compare Files
+
+- (IBAction)menuCompare:(id)sender {
+    if (_tabView.numberOfTabViewItems < 2) {
+        NSAlert *a = [NSAlert new];
+        a.messageText     = @"Compare Files";
+        a.informativeText = @"Open at least two files to compare.";
+        [a runModal];
+        return;
+    }
+
+    // Build list of tab titles
+    NSMutableArray<NSString *> *titles = [NSMutableArray array];
+    for (NSInteger i = 0; i < _tabView.numberOfTabViewItems; i++) {
+        NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
+        [titles addObject:item.label ?: @"Untitled"];
+    }
+
+    // Accessory view with two pop-up buttons
+    NSView *acc = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 340, 60)];
+
+    NSTextField *lbl1 = [NSTextField labelWithString:@"Links:"];
+    lbl1.frame = NSMakeRect(0, 36, 50, 18);
+    NSTextField *lbl2 = [NSTextField labelWithString:@"Rechts:"];
+    lbl2.frame = NSMakeRect(0, 8, 50, 18);
+
+    NSPopUpButton *pop1 = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(58, 32, 280, 26) pullsDown:NO];
+    NSPopUpButton *pop2 = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(58, 4, 280, 26) pullsDown:NO];
+
+    for (NSString *t in titles) {
+        [pop1 addItemWithTitle:t];
+        [pop2 addItemWithTitle:t];
+    }
+    // Default: left=first, right=second
+    [pop1 selectItemAtIndex:0];
+    [pop2 selectItemAtIndex:MIN(1, (NSInteger)titles.count - 1)];
+
+    [acc addSubview:lbl1]; [acc addSubview:lbl2];
+    [acc addSubview:pop1]; [acc addSubview:pop2];
+
+    NSAlert *alert = [NSAlert new];
+    alert.messageText     = @"Compare Files";
+    alert.informativeText = @"Wähle zwei Dateien zum Vergleichen:";
+    alert.accessoryView   = acc;
+    [alert addButtonWithTitle:@"Vergleichen"];
+    [alert addButtonWithTitle:@"Abbrechen"];
+
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+    NSInteger idxL = pop1.indexOfSelectedItem;
+    NSInteger idxR = pop2.indexOfSelectedItem;
+    if (idxL == idxR) {
+        NSAlert *a = [NSAlert new];
+        a.messageText = @"Bitte zwei verschiedene Dateien wählen.";
+        [a runModal];
+        return;
+    }
+
+    NSTabViewItem *itemL = [_tabView tabViewItemAtIndex:idxL];
+    NSTabViewItem *itemR = [_tabView tabViewItemAtIndex:idxR];
+    EditorViewController *evcL = (EditorViewController *)itemL.identifier;
+    EditorViewController *evcR = (EditorViewController *)itemR.identifier;
+
+    NSString *textL  = [evcL currentContent];
+    NSString *textR  = [evcR currentContent];
+    NSString *titleL = itemL.label;
+    NSString *titleR = itemR.label;
+
+    CompareViewController *cv = [[CompareViewController alloc]
+        initWithLeftTitle:titleL leftText:textL
+               rightTitle:titleR rightText:textR];
+    [_compareControllers addObject:cv];
+    [cv showWindow:nil];
 }
 
 @end

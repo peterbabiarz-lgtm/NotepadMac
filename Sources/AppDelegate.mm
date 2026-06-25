@@ -12,6 +12,12 @@ static NSString *const kSessionKey = @"SessionFiles";
     _windowController = [[WindowController alloc] init];
     [_windowController showWindow:nil];
 
+    // Auto-save when the app loses focus
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(appDidResignActive:)
+                                                 name:NSApplicationDidResignActiveNotification
+                                               object:nil];
+
     // Restore last session
     NSArray<NSString *> *session = [[NSUserDefaults standardUserDefaults] arrayForKey:kSessionKey];
     BOOL restored = NO;
@@ -25,6 +31,10 @@ static NSString *const kSessionKey = @"SessionFiles";
     if (!restored) {
         [_windowController newDocument];
     }
+}
+
+- (void)appDidResignActive:(NSNotification *)note {
+    [_windowController autoSaveAll];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)note {

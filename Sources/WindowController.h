@@ -14,4 +14,7 @@
 // Persist open file URLs to NSUserDefaults for next launch
 - (void)saveSession;
 
+// Auto-save all modified documents that already have a file URL
+- (void)autoSaveAll;
+
 @end
