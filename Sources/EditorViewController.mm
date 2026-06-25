@@ -50,11 +50,6 @@
     _editor.delegate = self;
 }
 
-- (void)viewDidAppear {
-    [super viewDidAppear];
-    [self.view.window makeFirstResponder:_editor];
-}
-
 // MARK: – Editor setup
 
 - (void)configureEditorDefaults {
@@ -98,6 +93,9 @@
     // Caret
     [_editor setGeneralProperty:SCI_SETCARETWIDTH value:2];
     [_editor setGeneralProperty:SCI_SETCARETLINEVISIBLE value:1];
+
+    // Ensure editor is writable
+    [_editor setGeneralProperty:SCI_SETREADONLY value:0];
 
     // Word wrap off by default
     [_editor setGeneralProperty:SCI_SETWRAPMODE value:SC_WRAP_NONE];
@@ -274,7 +272,8 @@
 // MARK: – Content
 
 - (void)reloadContent {
-    [_editor setString:_document.content ?: @""];
+    NSString *content = _document.content ?: @"";
+    [_editor setString:content];
     [_editor setGeneralProperty:SCI_SETSAVEPOINT value:0];
     _document.hasUnsavedChanges = NO;
 }
@@ -336,6 +335,12 @@
 }
 
 // MARK: – Navigation
+
+- (void)focusEditor {
+    NSWindow *win = self.view.window;
+    if (!win) return;
+    [win makeFirstResponder:[_editor content]];
+}
 
 - (void)goToLine:(NSInteger)lineNumber {
     NSInteger total = [_editor getGeneralProperty:SCI_GETLINECOUNT];

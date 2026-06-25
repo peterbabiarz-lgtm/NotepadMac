@@ -205,11 +205,6 @@ static const NSInteger kMaxRecentFiles = 10;
     [_tabView addTabViewItem:item];
     [_tabView selectTabViewItem:item];
     [self updateTitle];
-    // Give keyboard focus to the editor — viewDidAppear is not called for manually
-    // embedded views, so we do this explicitly after the tab is selected.
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.window makeFirstResponder:editorView];
-    });
 
     if (document.fileURL) {
         [self addToRecentFiles:document.fileURL];
@@ -499,9 +494,12 @@ static const NSInteger kMaxRecentFiles = 10;
 - (void)tabView:(NSTabView *)tabView didSelectTabViewItem:(NSTabViewItem *)tabViewItem {
     [self updateTitle];
     [self updateStatusBar];
-    if (_findPanel.isVisible) {
-        if ([tabViewItem.identifier isKindOfClass:[EditorViewController class]])
-            _findPanel.editor = (EditorViewController *)tabViewItem.identifier;
+    if ([tabViewItem.identifier isKindOfClass:[EditorViewController class]]) {
+        EditorViewController *evc = (EditorViewController *)tabViewItem.identifier;
+        if (_findPanel.isVisible) _findPanel.editor = evc;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [evc focusEditor];
+        });
     }
 }
 
