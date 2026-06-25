@@ -93,6 +93,9 @@
     // Caret
     [_editor setGeneralProperty:SCI_SETCARETWIDTH value:2];
     [_editor setGeneralProperty:SCI_SETCARETLINEVISIBLE value:1];
+    // Use a 2px frame border around the caret line instead of a filled background,
+    // so text on the current line stays readable.
+    [_editor setGeneralProperty:SCI_SETCARETLINEFRAME value:2];
 
     // Ensure editor is writable
     [_editor setGeneralProperty:SCI_SETREADONLY value:0];
@@ -156,7 +159,15 @@
 
     // Caret & selection
     [_editor setColorProperty:SCI_SETCARETFORE parameter:0 value:t.caretFg];
-    [_editor setColorProperty:SCI_SETCARETLINEBACK parameter:0 value:t.caretLineBg];
+    // SCI_SETCARETLINEBACK takes color as wParam (unlike most color messages that use lParam),
+    // so we must pass it as the parameter argument, not via setColorProperty.
+    {
+        NSColor *c = [t.caretLineBg colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
+        long clr = (long)(c.redComponent * 255)
+                 | ((long)(c.greenComponent * 255) << 8)
+                 | ((long)(c.blueComponent * 255) << 16);
+        [_editor setGeneralProperty:SCI_SETCARETLINEBACK parameter:clr value:0];
+    }
     [_editor setColorProperty:SCI_SETSELBACK parameter:1 value:t.selectionBg];
 
     // Line numbers

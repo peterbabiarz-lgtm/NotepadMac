@@ -72,7 +72,7 @@ static const NSInteger kMaxRecentFiles = 10;
     CGFloat tabH = content.bounds.size.height - 23;
     _tabView = [[NSTabView alloc] initWithFrame:NSMakeRect(0, 23, content.bounds.size.width, tabH)];
     _tabView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _tabView.tabViewType = NSTopTabsBezelBorder;
+    _tabView.tabViewType = NSRightTabsBezelBorder;
     _tabView.delegate = self;
     [content addSubview:_tabView];
 }
