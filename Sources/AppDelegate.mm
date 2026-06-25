@@ -33,14 +33,7 @@ static NSString *const kSessionKey = @"SessionFiles";
 }
 
 - (void)saveSession {
-    // Walk all tab items via the window controller's public API indirectly:
-    // WindowController exposes openDocument/newDocument, but not the tab list.
-    // We read the session by inspecting the tab view via a notification-safe path.
-    // Actually, the simplest approach: WindowController saves the session itself.
-    // We notify it via a custom selector so AppDelegate stays thin.
-    if ([_windowController respondsToSelector:@selector(saveSession)]) {
-        [_windowController performSelector:@selector(saveSession)];
-    }
+    [_windowController saveSession];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app {
@@ -55,6 +48,7 @@ static NSString *const kSessionKey = @"SessionFiles";
         [_windowController openDocument:doc];
         return YES;
     }
+    if (err) [[NSAlert alertWithError:err] runModal];
     return NO;
 }
 

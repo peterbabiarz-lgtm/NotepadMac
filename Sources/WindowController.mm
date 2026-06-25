@@ -197,13 +197,15 @@ static const NSInteger kMaxRecentFiles = 10;
 
 - (EditorViewController *)currentEditor {
     NSTabViewItem *sel = _tabView.selectedTabViewItem;
-    if (!sel) return nil;
+    if (![sel.identifier isKindOfClass:[EditorViewController class]]) return nil;
     return (EditorViewController *)sel.identifier;
 }
 
 - (void)closeTabAtIndex:(NSInteger)idx {
     if (_tabView.numberOfTabViewItems == 0) return;
+    if (idx == NSNotFound || idx < 0 || idx >= _tabView.numberOfTabViewItems) return;
     NSTabViewItem *item = [_tabView tabViewItemAtIndex:idx];
+    if (![item.identifier isKindOfClass:[EditorViewController class]]) return;
     EditorViewController *evc = (EditorViewController *)item.identifier;
 
     if (evc.document.hasUnsavedChanges) {
@@ -259,6 +261,7 @@ static const NSInteger kMaxRecentFiles = 10;
     NSSavePanel *panel = [NSSavePanel savePanel];
     panel.nameFieldStringValue = evc.document.displayName;
     if ([panel runModal] == NSModalResponseOK) {
+        evc.document.content = [evc currentContent];
         NSError *err;
         if (![evc.document saveToURL:panel.URL error:&err]) {
             [[NSAlert alertWithError:err] runModal];
@@ -305,6 +308,7 @@ static const NSInteger kMaxRecentFiles = 10;
         [self menuSaveAs:nil];
         return;
     }
+    evc.document.content = [evc currentContent];
     NSError *err;
     if (![evc.document save:&err]) {
         [[NSAlert alertWithError:err] runModal];
@@ -331,10 +335,11 @@ static const NSInteger kMaxRecentFiles = 10;
     if (!evc) return;
     NSString *lang = [[LexerManager shared] languageNameForExtension:
                       evc.document.fileURL.pathExtension ?: @""];
+    NSString *enc  = [NSString localizedNameOfStringEncoding:evc.document.encoding];
     _statusLabel.stringValue = [NSString stringWithFormat:
-        @"Ln %ld, Col %ld  |  UTF-8  |  %@  |  Lines: %ld",
+        @"Ln %ld, Col %ld  |  %@  |  %@  |  Lines: %ld",
         (long)[evc currentLine], (long)[evc currentColumn],
-        lang, (long)[evc totalLines]];
+        enc, lang, (long)[evc totalLines]];
 }
 
 
@@ -435,7 +440,8 @@ static const NSInteger kMaxRecentFiles = 10;
     [self updateTitle];
     [self updateStatusBar];
     if (_findPanel.isVisible) {
-        _findPanel.editor = (EditorViewController *)tabViewItem.identifier;
+        if ([tabViewItem.identifier isKindOfClass:[EditorViewController class]])
+            _findPanel.editor = (EditorViewController *)tabViewItem.identifier;
     }
 }
 

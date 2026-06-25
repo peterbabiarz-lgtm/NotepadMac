@@ -16,6 +16,7 @@
 - (instancetype)initWithDocument:(Document *)document;
 - (void)applyTheme;
 - (void)reloadContent;
+- (NSString *)currentContent;
 
 // Find & Replace
 - (BOOL)findText:(NSString *)text matchCase:(BOOL)matchCase wholeWord:(BOOL)wholeWord forward:(BOOL)forward;

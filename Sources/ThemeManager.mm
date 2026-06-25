@@ -2,7 +2,9 @@
 
 static NSColor *hex(NSString *h) {
     unsigned int rgb = 0;
-    [[NSScanner scannerWithString:h] scanHexInt:&rgb];
+    BOOL ok = [[NSScanner scannerWithString:h] scanHexInt:&rgb];
+    NSCAssert(ok, @"ThemeManager: malformed hex color '%@'", h);
+    (void)ok;
     return [NSColor colorWithRed:((rgb>>16)&0xFF)/255.0
                            green:((rgb>>8)&0xFF)/255.0
                             blue:(rgb&0xFF)/255.0

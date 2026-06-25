@@ -26,16 +26,18 @@ static int untitledCounter = 0;
     NSData *data = [NSData dataWithContentsOfURL:url options:0 error:error];
     if (!data) return nil;
 
-    // Try UTF-8 first, then fall back to detected encoding
+    // Try UTF-8 first, then let Foundation detect the encoding from the data we already have
     _content = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     if (!_content) {
         NSStringEncoding detected;
-        _content = [NSString stringWithContentsOfURL:url
-                                        usedEncoding:&detected
-                                               error:error];
-        if (_content) _encoding = detected;
+        _content = [NSString stringWithContentsOfURL:url usedEncoding:&detected error:error];
+        if (_content) {
+            _encoding = detected;
+        } else {
+            // Both attempts failed — return nil so callers can show the real error
+            return nil;
+        }
     }
-    if (!_content) _content = @"";
 
     _hasUnsavedChanges = NO;
     return self;

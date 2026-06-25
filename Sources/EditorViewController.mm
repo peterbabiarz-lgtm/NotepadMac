@@ -279,6 +279,10 @@
     _document.hasUnsavedChanges = NO;
 }
 
+- (NSString *)currentContent {
+    return [_editor string];
+}
+
 // MARK: – Find & Replace
 
 - (BOOL)findText:(NSString *)text matchCase:(BOOL)matchCase wholeWord:(BOOL)wholeWord forward:(BOOL)forward {
@@ -321,10 +325,12 @@
 - (void)notification:(SCNotification *)notification {
     if (notification->nmhdr.code == SCN_MODIFIED &&
         (notification->modificationType & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT))) {
-        _document.content = [_editor string];
+        // Don't copy the full buffer here — read lazily at save time via [_editor string]
         _document.hasUnsavedChanges = YES;
         [_delegate editorDidChangeContent:self];
-    } else if (notification->nmhdr.code == SCN_UPDATEUI) {
+    } else if (notification->nmhdr.code == SCN_UPDATEUI &&
+               (notification->updated & (SC_UPDATE_SELECTION | SC_UPDATE_V_SCROLL | SC_UPDATE_H_SCROLL))) {
+        // Only update status bar when caret/scroll actually changed, not on every paint
         [_delegate editorDidChangeContent:self];
     }
 }
