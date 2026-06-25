@@ -78,7 +78,11 @@ ALL_OBJS := $(SCI_OBJS) $(SCI_COC_OBJS) $(LEX_OBJS) $(APP_OBJS) $(APP_CXX_OBJ)
 # ── Targets ──────────────────────────────────────────────────────────────────
 .PHONY: all clean run
 
-all: $(APP_DIR)/Contents/MacOS/NotepadMac
+all: $(APP_DIR)/Contents/MacOS/NotepadMac $(CONTENTS)/Info.plist
+
+# Always copy Info.plist so version changes take effect without a full relink
+$(CONTENTS)/Info.plist: Resources/Info.plist | dirs
+	cp $< $@
 
 # Link
 $(APP_DIR)/Contents/MacOS/NotepadMac: $(ALL_OBJS) | dirs
