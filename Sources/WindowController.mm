@@ -322,7 +322,11 @@ static const NSInteger kMaxRecentFiles = 10;
     Document *doc = [[Document alloc] initWithURL:[NSURL fileURLWithPath:path] error:&err];
     if (doc) {
         [self openDocument:doc];
-        [[self currentEditor] goToLine:line];
+        EditorViewController *newEvc = [self currentEditor];
+        // Defer goToLine: so Scintilla finishes its initial layout before we scroll
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [newEvc goToLine:line];
+        });
     } else if (err) {
         [[NSAlert alertWithError:err] runModal];
     }

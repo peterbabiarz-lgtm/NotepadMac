@@ -37,8 +37,8 @@
     // State
     NSMutableArray<ResultRow *> *_rows;   // flat display list (headers + matches)
     NSMutableArray<FileResults *> *_fileResults;
-    BOOL           _searching;
-    BOOL           _cancelFlag;
+    BOOL                _searching;
+    volatile BOOL       _cancelFlag;   // written on main, read on bg thread
 }
 
 + (instancetype)shared {
@@ -193,19 +193,20 @@
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSInteger totalFiles = 0;
-        BOOL cancel = NO;
 
         NSArray<FileResults *> *results =
             [SearchEngine findInDirectory:dir
                                   options:opts
                             progressBlock:^(NSString *file, NSInteger hits) {
+                                // SearchEngine dispatches this block on the main queue
                                 self->_statusLabel.stringValue =
                                     [NSString stringWithFormat:@"Found %ld hits… (%@)",
                                      (long)hits, file.lastPathComponent];
                             }
-                               cancelFlag:&cancel
+                               cancelFlag:(BOOL *)&self->_cancelFlag
                         totalFilesScanned:&totalFiles];
 
+        BOOL wasCancelled = self->_cancelFlag;
         dispatch_async(dispatch_get_main_queue(), ^{
             [self->_fileResults addObjectsFromArray:results];
             [self buildRows];
@@ -214,7 +215,7 @@
             NSInteger totalHits = 0;
             for (FileResults *fr in results) totalHits += fr.results.count;
 
-            if (cancel) {
+            if (wasCancelled) {
                 self->_statusLabel.stringValue =
                     [NSString stringWithFormat:@"Cancelled. %ld hits in %ld files (%ld scanned).",
                      (long)totalHits, (long)results.count, (long)totalFiles];
@@ -299,9 +300,12 @@
     if (!fr) return;
 
     if (!header.expanded) {
-        // Remove child rows right after the header
-        NSRange childRange = NSMakeRange((NSUInteger)(headerIdx + 1), (NSUInteger)fr.results.count);
-        [_rows removeObjectsInRange:childRange];
+        // Count actual visible child rows (non-headers immediately following)
+        NSInteger childCount = 0;
+        for (NSInteger i = headerIdx + 1; i < (NSInteger)_rows.count && !_rows[i].isHeader; i++)
+            childCount++;
+        if (childCount > 0)
+            [_rows removeObjectsInRange:NSMakeRange((NSUInteger)(headerIdx + 1), (NSUInteger)childCount)];
     } else {
         // Re-insert child rows
         NSMutableArray *children = [NSMutableArray array];

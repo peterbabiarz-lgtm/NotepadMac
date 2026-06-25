@@ -348,11 +348,11 @@ static const CGFloat kSearchHeight = 52;
         ]];
     }
 
-    NSTextField *titleLabel    = [cell viewWithTag:0] ?: (NSTextField *)[cell valueForKey:@"textField"];
     NSTextField *shortcutLabel = nil;
     for (NSView *v in cell.subviews) {
-        if ([v isKindOfClass:[NSTextField class]] && v != titleLabel)
-            shortcutLabel = (NSTextField *)v;
+        if ([v.identifier isEqualToString:@"shortcut"]) {
+            shortcutLabel = (NSTextField *)v; break;
+        }
     }
 
     cell.textField.stringValue = e.title;

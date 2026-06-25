@@ -1,9 +1,5 @@
 #import "SearchEngine.h"
 
-@interface NSString (GlobMatch)
-- (BOOL)matchesGlob:(NSString *)pattern;
-@end
-
 @implementation SearchOptions
 - (instancetype)init {
     self = [super init];
@@ -53,16 +49,20 @@
                                   filePath:(NSString *)path
                                    options:(SearchOptions *)opts {
     if (opts.searchText.length == 0) return @[];
-
     NSError *err;
     NSRegularExpression *regex = [self regexFor:opts error:&err];
+    return [self findAllInText:text filePath:path options:opts regex:regex];
+}
+
++ (NSArray<SearchResult *> *)findAllInText:(NSString *)text
+                                  filePath:(NSString *)path
+                                   options:(SearchOptions *)opts
+                                     regex:(NSRegularExpression *)regex {
     if (!regex) return @[];
 
     NSMutableArray<SearchResult *> *results = [NSMutableArray array];
 
-    // Split into lines, track char offsets
     NSArray<NSString *> *lines = [text componentsSeparatedByString:@"\n"];
-    NSInteger offset = 0;
 
     for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
         NSString *line = lines[i];
@@ -77,7 +77,6 @@
             r.matchRange     = m.range;
             [results addObject:r];
         }
-        offset += line.length + 1; // +1 for \n
     }
     return results;
 }
@@ -104,6 +103,18 @@
     NSRegularExpression *regex = [self regexFor:opts error:&err];
     if (!regex) return @[];
 
+    // Pre-compile glob filter patterns once for the whole directory scan
+    NSMutableArray<NSRegularExpression *> *globRegexes = [NSMutableArray array];
+    for (NSString *pat in filters) {
+        NSString *escaped = [NSRegularExpression escapedPatternForString:pat];
+        NSString *regexPat = [escaped stringByReplacingOccurrencesOfString:@"\\*" withString:@".*"];
+        NSRegularExpression *re = [NSRegularExpression
+            regularExpressionWithPattern:[NSString stringWithFormat:@"^%@$", regexPat]
+                                 options:NSRegularExpressionCaseInsensitive
+                                   error:nil];
+        if (re) [globRegexes addObject:re];
+    }
+
     NSFileManager *fm = [NSFileManager defaultManager];
     NSDirectoryEnumerationOptions enumOpts = opts.recursive ? 0 : NSDirectoryEnumerationSkipsSubdirectoryDescendants;
     NSDirectoryEnumerator<NSURL *> *enumerator =
@@ -124,13 +135,13 @@
         [url getResourceValue:&isHidden forKey:NSURLIsHiddenKey error:nil];
         if (isHidden.boolValue) continue;
 
-        // Apply file filter
+        // Apply file filter using pre-compiled glob regexes
         NSString *filename = url.lastPathComponent;
         if (filters.count > 0 && ![filters containsObject:@"*"]) {
             BOOL matched = NO;
-            for (NSString *pat in filters) {
-                if ([filename caseInsensitiveCompare:pat] == NSOrderedSame ||
-                    [filename matchesGlob:pat]) {
+            for (NSRegularExpression *re in globRegexes) {
+                if ([re numberOfMatchesInString:filename options:0
+                                          range:NSMakeRange(0, filename.length)] > 0) {
                     matched = YES; break;
                 }
             }
@@ -148,7 +159,8 @@
 
         NSArray<SearchResult *> *hits = [self findAllInText:content
                                                    filePath:path
-                                                    options:opts];
+                                                    options:opts
+                                                      regex:regex];
         if (hits.count == 0) continue;
 
         FileResults *fr = [[FileResults alloc] initWithPath:path];
@@ -167,17 +179,4 @@
     return allResults;
 }
 
-@end
-
-@implementation NSString (GlobMatch)
-- (BOOL)matchesGlob:(NSString *)pattern {
-    // Convert glob to regex: escape regex metacharacters except *, replace * with .*
-    NSString *escaped = [NSRegularExpression escapedPatternForString:pattern];
-    NSString *regexPat = [escaped stringByReplacingOccurrencesOfString:@"\\*" withString:@".*"];
-    NSRegularExpression *re = [NSRegularExpression
-        regularExpressionWithPattern:[NSString stringWithFormat:@"^%@$", regexPat]
-                             options:NSRegularExpressionCaseInsensitive
-                               error:nil];
-    return re && [re numberOfMatchesInString:self options:0 range:NSMakeRange(0, self.length)] > 0;
-}
 @end
