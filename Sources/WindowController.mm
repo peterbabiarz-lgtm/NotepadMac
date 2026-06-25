@@ -2,6 +2,7 @@
 #import "EditorViewController.h"
 #import "FindReplacePanel.h"
 #import "FindInFilesPanel.h"
+#import "CommandPalettePanel.h"
 #import "Document.h"
 #import "LexerManager.h"
 
@@ -163,6 +164,12 @@ static const NSInteger kMaxRecentFiles = 10;
     [viewMenu addItemWithTitle:@"Reset Font Size"    action:@selector(menuFontReset:)   keyEquivalent:@"0"].target = self;
     [viewMenu addItem:[NSMenuItem separatorItem]];
     [viewMenu addItemWithTitle:@"Word Wrap" action:@selector(menuToggleWrap:) keyEquivalent:@""].target = self;
+    [viewMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *palette = [viewMenu addItemWithTitle:@"Command Palette"
+                                              action:@selector(menuCommandPalette:)
+                                       keyEquivalent:@"P"];   // ⌘⇧P
+    palette.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
+    palette.target = self;
 
     // ── Window menu ───────────────────────────────────────────────────────
     NSMenuItem *winItem = [[NSMenuItem alloc] initWithTitle:@"Window" action:nil keyEquivalent:@""];
@@ -288,6 +295,10 @@ static const NSInteger kMaxRecentFiles = 10;
 
 - (IBAction)menuFindInFiles:(id)sender {
     [[FindInFilesPanel shared] showPanel];
+}
+
+- (IBAction)menuCommandPalette:(id)sender {
+    [[CommandPalettePanel shared] showOverWindow:self.window];
 }
 
 - (void)openFileAtLine:(NSNotification *)note {
