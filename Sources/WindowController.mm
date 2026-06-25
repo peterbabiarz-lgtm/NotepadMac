@@ -205,6 +205,11 @@ static const NSInteger kMaxRecentFiles = 10;
     [_tabView addTabViewItem:item];
     [_tabView selectTabViewItem:item];
     [self updateTitle];
+    // Give keyboard focus to the editor — viewDidAppear is not called for manually
+    // embedded views, so we do this explicitly after the tab is selected.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.window makeFirstResponder:editorView];
+    });
 
     if (document.fileURL) {
         [self addToRecentFiles:document.fileURL];
