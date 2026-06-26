@@ -7,22 +7,122 @@
 #import "Document.h"
 #import "LexerManager.h"
 #import "TabBarView.h"
+#import "FindBarView.h"
 #include "Scintilla.h"
 
-@interface WindowController () <NSTabViewDelegate, EditorViewControllerDelegate, TabBarViewDelegate>
+// MARK: – File-drop overlay (transparent, sits on top, passes through mouse clicks)
+
+@protocol _NMDropTarget <NSObject>
+- (void)openDroppedURLs:(NSArray<NSURL *> *)urls;
+@end
+
+@interface _NMDropView : NSView
+@property (nonatomic, weak) id<_NMDropTarget> dropTarget;
+@end
+
+@implementation _NMDropView {
+    BOOL _hovering;
+}
+
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (!self) return nil;
+    [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
+    return self;
+}
+
+// Let all mouse clicks fall through to views below.
+- (NSView *)hitTest:(NSPoint)point { return nil; }
+
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+    if (![sender.draggingPasteboard canReadObjectForClasses:@[NSURL.class]
+          options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}])
+        return NSDragOperationNone;
+    _hovering = YES;
+    [self setNeedsDisplay:YES];
+    return NSDragOperationCopy;
+}
+
+- (void)draggingExited:(id<NSDraggingInfo>)sender {
+    _hovering = NO;
+    [self setNeedsDisplay:YES];
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
+    _hovering = NO;
+    [self setNeedsDisplay:YES];
+    NSArray<NSURL *> *urls = [sender.draggingPasteboard
+        readObjectsForClasses:@[NSURL.class]
+        options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+    if (!urls.count) return NO;
+    [_dropTarget openDroppedURLs:urls];
+    return YES;
+}
+
+// Draw a subtle blue border while a file is being dragged over the window.
+- (void)drawRect:(NSRect)dirtyRect {
+    if (!_hovering) return;
+    NSColor *highlight = [NSColor colorWithRed:0.20 green:0.50 blue:1.00 alpha:0.18];
+    [highlight setFill];
+    NSRectFillUsingOperation(self.bounds, NSCompositingOperationSourceOver);
+    [[NSColor colorWithRed:0.20 green:0.50 blue:1.00 alpha:0.70] setStroke];
+    NSBezierPath *border = [NSBezierPath bezierPathWithRect:NSInsetRect(self.bounds, 2, 2)];
+    border.lineWidth = 3;
+    [border stroke];
+}
+
+@end
+
+// MARK: –
+
+@interface WindowController () <NSTabViewDelegate, EditorViewControllerDelegate, TabBarViewDelegate, _NMDropTarget, FindBarViewDelegate>
 @end
 
 static NSString *const kRecentFilesKey = @"RecentFiles";
 static const NSInteger kMaxRecentFiles = 10;
 
+static const CGFloat kFindBarH = 74.0;
+
+// Returns the table of supported encodings: @[@(name), @(NSStringEncoding), @(hasBOM)]
+static NSArray<NSArray *> *NMEncodingTable(void) {
+    static NSArray *t;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        t = @[
+            @[@"UTF-8",                        @(NSUTF8StringEncoding),              @NO],
+            @[@"UTF-8 mit BOM",                @(NSUTF8StringEncoding),              @YES],
+            @[@"UTF-16 LE",                    @(NSUTF16LittleEndianStringEncoding), @NO],
+            @[@"UTF-16 BE",                    @(NSUTF16BigEndianStringEncoding),    @NO],
+            @[@"ISO Latin-1 (ISO-8859-1)",     @(NSISOLatin1StringEncoding),         @NO],
+            @[@"Windows-1252 (Westeuropa)",    @(NSWindowsCP1252StringEncoding),     @NO],
+            @[@"Windows-1250 (Mitteleuropa)",  @(NSWindowsCP1250StringEncoding),     @NO],
+            @[@"Windows-1251 (Kyrillisch)",    @(NSWindowsCP1251StringEncoding),     @NO],
+            @[@"Shift-JIS",                    @(NSShiftJISStringEncoding),          @NO],
+            @[@"EUC-JP",                       @(NSJapaneseEUCStringEncoding),       @NO],
+            @[@"Mac Roman",                    @(NSMacOSRomanStringEncoding),        @NO],
+        ];
+    });
+    return t;
+}
+
+static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
+    for (NSArray *e in NMEncodingTable()) {
+        if ([e[1] unsignedIntegerValue] == enc && [e[2] boolValue] == bom)
+            return e[0];
+    }
+    return [NSString localizedNameOfStringEncoding:enc];
+}
+
 @implementation WindowController {
     NSTabView             *_tabView;
     TabBarView            *_tabBar;
+    FindBarView           *_findBar;
     NSTextField           *_statusLabel;
-    FindReplacePanel      *_findPanel;
+    NSButton              *_encodingBtn;
+    FindReplacePanel      *_findPanel;   // kept for legacy callers
     NSMutableArray<EditorViewController *> *_editors;
     NSMenu                *_recentFilesMenu;
-    NSMutableArray        *_compareControllers;  // keeps CompareViewControllers alive
+    NSMutableArray        *_compareControllers;
 }
 
 - (instancetype)init {
@@ -73,12 +173,21 @@ static const NSInteger kMaxRecentFiles = 10;
     separator.autoresizingMask = NSViewWidthSizable;
     [content addSubview:separator];
 
-    _statusLabel = [NSTextField labelWithString:@"Ln 1, Col 1  |  UTF-8  |  Plain Text"];
-    _statusLabel.frame = NSMakeRect(8, 2, W - 16, 18);
+    _statusLabel = [NSTextField labelWithString:@"Ln 1, Col 1  |  Plain Text  |  LF"];
+    _statusLabel.frame = NSMakeRect(8, 2, W - 170, 18);
     _statusLabel.autoresizingMask = NSViewWidthSizable;
     _statusLabel.font = [NSFont systemFontOfSize:11];
     _statusLabel.textColor = NSColor.secondaryLabelColor;
     [statusBar addSubview:_statusLabel];
+
+    _encodingBtn = [NSButton buttonWithTitle:@"UTF-8"
+                                      target:self
+                                      action:@selector(showEncodingMenu:)];
+    _encodingBtn.frame = NSMakeRect(W - 158, 1, 154, 20);
+    _encodingBtn.autoresizingMask = NSViewMinXMargin;
+    _encodingBtn.bezelStyle = NSBezelStyleRounded;
+    _encodingBtn.font = [NSFont systemFontOfSize:11];
+    [statusBar addSubview:_encodingBtn];
 
     // Custom tab bar at top
     static const CGFloat kTabBarH = 33.0;
@@ -94,6 +203,19 @@ static const NSInteger kMaxRecentFiles = 10;
     _tabView.tabViewType = NSNoTabsNoBorder;
     _tabView.delegate = self;
     [content addSubview:_tabView];
+
+    // Inline find bar (hidden by default, slides in above status bar)
+    _findBar = [[FindBarView alloc] initWithFrame:NSMakeRect(0, 23, W, kFindBarH)];
+    _findBar.autoresizingMask = NSViewWidthSizable;
+    _findBar.delegate = self;
+    _findBar.hidden = YES;
+    [content addSubview:_findBar];
+
+    // Transparent drop target on top — passes mouse clicks through via hitTest:nil
+    _NMDropView *dropView = [[_NMDropView alloc] initWithFrame:content.bounds];
+    dropView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    dropView.dropTarget = self;
+    [content addSubview:dropView positioned:NSWindowAbove relativeTo:nil];
 }
 
 // MARK: – Menu Bar
@@ -187,6 +309,32 @@ static const NSInteger kMaxRecentFiles = 10;
     [[eolMenu addItemWithTitle:@"Windows (CRLF)"  action:@selector(menuSetEolCRLF:) keyEquivalent:@""] setTarget:self];
     [[eolMenu addItemWithTitle:@"Classic Mac (CR)" action:@selector(menuSetEolCR:)  keyEquivalent:@""] setTarget:self];
 
+    [fmtMenu addItem:[NSMenuItem separatorItem]];
+
+    // Encoding → Convert submenu
+    NSMenuItem *encConvParent = [[NSMenuItem alloc] initWithTitle:@"Kodierung konvertieren" action:nil keyEquivalent:@""];
+    NSMenu *encConvMenu = [[NSMenu alloc] initWithTitle:@"Kodierung konvertieren"];
+    encConvParent.submenu = encConvMenu;
+    [fmtMenu addItem:encConvParent];
+    for (NSArray *e in NMEncodingTable()) {
+        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuConvertToEncoding:) keyEquivalent:@""];
+        mi.target = self;
+        mi.representedObject = e;
+        [encConvMenu addItem:mi];
+    }
+
+    // Encoding → Reload submenu
+    NSMenuItem *encRldParent = [[NSMenuItem alloc] initWithTitle:@"Neu laden mit Kodierung" action:nil keyEquivalent:@""];
+    NSMenu *encRldMenu = [[NSMenu alloc] initWithTitle:@"Neu laden mit Kodierung"];
+    encRldParent.submenu = encRldMenu;
+    [fmtMenu addItem:encRldParent];
+    for (NSArray *e in NMEncodingTable()) {
+        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuReloadWithEncoding:) keyEquivalent:@""];
+        mi.target = self;
+        mi.representedObject = e;
+        [encRldMenu addItem:mi];
+    }
+
     // ── View menu ─────────────────────────────────────────────────────────
     NSMenuItem *viewItem = [[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""];
     [mainMenu addItem:viewItem];
@@ -204,6 +352,28 @@ static const NSInteger kMaxRecentFiles = 10;
                                        keyEquivalent:@"P"];   // ⌘⇧P
     palette.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
     palette.target = self;
+    [viewMenu addItem:[NSMenuItem separatorItem]];
+
+    // Folding
+    [viewMenu addItemWithTitle:@"Falten umschalten"
+                        action:@selector(menuToggleFold:)
+                 keyEquivalent:@"."].target = self;
+    [viewMenu addItemWithTitle:@"Alle falten"
+                        action:@selector(menuFoldAll:)
+                 keyEquivalent:@""].target = self;
+    [viewMenu addItemWithTitle:@"Alle entfalten"
+                        action:@selector(menuUnfoldAll:)
+                 keyEquivalent:@""].target = self;
+
+    [viewMenu addItem:[NSMenuItem separatorItem]];
+
+    // Column / block selection mode
+    NSMenuItem *colMode = [viewMenu addItemWithTitle:@"Spaltenmodus (Blockauswahl)"
+                                              action:@selector(menuToggleColumnMode:)
+                                       keyEquivalent:@"b"];
+    colMode.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    colMode.target = self;
+
     [viewMenu addItem:[NSMenuItem separatorItem]];
     [viewMenu addItemWithTitle:@"Compare Files…" action:@selector(menuCompare:) keyEquivalent:@""].target = self;
 
@@ -419,11 +589,81 @@ static const NSInteger kMaxRecentFiles = 10;
 - (IBAction)menuFind:(id)sender {
     EditorViewController *evc = [self currentEditor];
     if (!evc) return;
-    if (!_findPanel) {
-        _findPanel = [[FindReplacePanel alloc] initForEditor:evc];
+    _findBar.editor = evc;
+    [self showFindBar];
+    [_findBar focusFindField];
+}
+
+// MARK: – Find bar show/hide
+
+- (void)showFindBar {
+    if (!_findBar.hidden) return;
+    _findBar.hidden = NO;
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+        ctx.duration = 0.15;
+        NSRect tvFrame = _tabView.frame;
+        tvFrame.size.height -= kFindBarH;
+        [[_tabView animator] setFrame:tvFrame];
+    }];
+}
+
+- (void)hideFindBar {
+    if (_findBar.hidden) return;
+    [[self currentEditor] clearSearchHighlights];
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+        ctx.duration = 0.15;
+        NSRect tvFrame = _tabView.frame;
+        tvFrame.size.height += kFindBarH;
+        [[_tabView animator] setFrame:tvFrame];
+    } completionHandler:^{
+        _findBar.hidden = YES;
+    }];
+}
+
+// MARK: – FindBarViewDelegate
+
+- (void)findBar:(FindBarView *)bar findNext:(BOOL)forward {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    BOOL found = [evc findText:bar.findText options:bar.findOptions forward:forward];
+    [bar setMatchCount:found ? [evc countMatches:bar.findText options:bar.findOptions] : 0];
+}
+
+- (void)findBar:(FindBarView *)bar replaceCurrent:(NSString *)replacement {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    [evc replaceCurrentAndFindNext:bar.findText replacement:replacement options:bar.findOptions];
+    NSInteger count = [evc countMatches:bar.findText options:bar.findOptions];
+    [bar setMatchCount:count];
+    [self updateCurrentTabTitle];
+}
+
+- (void)findBar:(FindBarView *)bar replaceAll:(NSString *)replacement {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    NSInteger n = [evc replaceAll:bar.findText with:replacement options:bar.findOptions];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [bar setMatchCount:n > 0 ? n : 0];
+    });
+    [self updateCurrentTabTitle];
+}
+
+- (void)findBar:(FindBarView *)bar highlightAll:(NSString *)text {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    if (text.length == 0) {
+        [evc clearSearchHighlights];
+        [bar setMatchCount:-1];
+        return;
     }
-    _findPanel.editor = evc;
-    [_findPanel makeKeyAndOrderFront:nil];
+    NSInteger count = [evc countMatches:text options:bar.findOptions];
+    [evc highlightAllMatches:text options:bar.findOptions];
+    [bar setMatchCount:count];
+}
+
+- (void)findBarDidClose:(FindBarView *)bar {
+    [self hideFindBar];
+    [[self currentEditor] focusEditor];
 }
 
 - (IBAction)menuFontBigger:(id)sender  { [[self currentEditor] changeFontSize:+1]; }
@@ -451,6 +691,114 @@ static const NSInteger kMaxRecentFiles = 10;
 - (IBAction)menuSetEolCRLF:(id)sender { [[self currentEditor] convertToEolMode:SC_EOL_CRLF]; }
 - (IBAction)menuSetEolCR:(id)sender   { [[self currentEditor] convertToEolMode:SC_EOL_CR]; }
 
+- (IBAction)menuFoldAll:(id)sender          { [[self currentEditor] foldAll]; }
+- (IBAction)menuUnfoldAll:(id)sender        { [[self currentEditor] unfoldAll]; }
+- (IBAction)menuToggleFold:(id)sender       { [[self currentEditor] toggleFoldAtCursor]; }
+
+- (IBAction)menuToggleColumnMode:(id)sender {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    [evc setColumnMode:!evc.columnMode];
+}
+
+// Keep text in memory, change encoding for next save.
+- (IBAction)menuConvertToEncoding:(NSMenuItem *)sender {
+    NSArray *e = sender.representedObject;
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    NSStringEncoding enc = [e[1] unsignedIntegerValue];
+    BOOL bom = [e[2] boolValue];
+    // Test live editor content, not the stale document snapshot.
+    NSString *liveContent = [evc currentContent];
+    NSData *test = [liveContent dataUsingEncoding:enc allowLossyConversion:NO];
+    if (!test) {
+        NSAlert *a = [NSAlert new];
+        a.messageText = @"Konvertierung nicht möglich";
+        a.informativeText = [NSString stringWithFormat:
+            @"Der Text enthält Zeichen, die in \"%@\" nicht darstellbar sind.", e[0]];
+        [a runModal];
+        return;
+    }
+    [evc.document setEncodingForNextSave:enc hasBOM:bom];
+    [self updateCurrentTabTitle];
+    [self updateStatusBar];
+}
+
+// Re-read the file from disk with the selected encoding.
+- (IBAction)menuReloadWithEncoding:(NSMenuItem *)sender {
+    NSArray *e = sender.representedObject;
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+    if (!evc.document.fileURL) {
+        NSAlert *a = [NSAlert new];
+        a.messageText = @"Kein Dateiname";
+        a.informativeText = @"Ungespeicherte Dateien können nicht neu geladen werden.";
+        [a runModal];
+        return;
+    }
+    if (evc.document.hasUnsavedChanges) {
+        NSAlert *a = [NSAlert new];
+        a.messageText = @"Ungespeicherte Änderungen verwerfen?";
+        a.informativeText = [NSString stringWithFormat:
+            @"Die Datei wird mit der Kodierung \"%@\" neu geladen. Ungespeicherte Änderungen gehen verloren.", e[0]];
+        [a addButtonWithTitle:@"Neu laden"];
+        [a addButtonWithTitle:@"Abbrechen"];
+        if ([a runModal] != NSAlertFirstButtonReturn) return;
+    }
+    NSStringEncoding enc = [e[1] unsignedIntegerValue];
+    BOOL bom = [e[2] boolValue];
+    NSError *err;
+    if (![evc.document reloadWithEncoding:enc hasBOM:bom error:&err]) {
+        [[NSAlert alertWithError:err] runModal];
+        return;
+    }
+    [evc reloadContent];
+    [self updateCurrentTabTitle];
+    [self updateStatusBar];
+}
+
+// Show encoding menu from the status bar button.
+- (IBAction)showEncodingMenu:(NSButton *)sender {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Kodierung"];
+
+    NSMenuItem *convHeader = [[NSMenuItem alloc] initWithTitle:@"Konvertieren zu:" action:nil keyEquivalent:@""];
+    convHeader.enabled = NO;
+    [menu addItem:convHeader];
+
+    NSStringEncoding curEnc = evc.document.encoding;
+    BOOL curBOM = evc.document.hasBOM;
+
+    for (NSArray *e in NMEncodingTable()) {
+        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuConvertToEncoding:) keyEquivalent:@""];
+        mi.target = self;
+        mi.representedObject = e;
+        if ([e[1] unsignedIntegerValue] == curEnc && [e[2] boolValue] == curBOM)
+            mi.state = NSControlStateValueOn;
+        [menu addItem:mi];
+    }
+
+    [menu addItem:[NSMenuItem separatorItem]];
+
+    NSMenuItem *rldHeader = [[NSMenuItem alloc] initWithTitle:@"Neu laden mit:" action:nil keyEquivalent:@""];
+    rldHeader.enabled = NO;
+    [menu addItem:rldHeader];
+
+    for (NSArray *e in NMEncodingTable()) {
+        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuReloadWithEncoding:) keyEquivalent:@""];
+        mi.target = self;
+        mi.representedObject = e;
+        if (!evc.document.fileURL) mi.enabled = NO;
+        [menu addItem:mi];
+    }
+
+    [menu popUpMenuPositioningItem:nil
+                        atLocation:NSMakePoint(0, sender.bounds.size.height + 4)
+                            inView:sender];
+}
+
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     SEL a = item.action;
     EditorViewController *evc = [self currentEditor];
@@ -475,6 +823,25 @@ static const NSInteger kMaxRecentFiles = 10;
         item.state = (evc.eolMode == SC_EOL_CR) ? NSControlStateValueOn : NSControlStateValueOff;
         return evc != nil;
     }
+    if (a == @selector(menuConvertToEncoding:)) {
+        if (!evc) return NO;
+        NSArray *e = item.representedObject;
+        item.state = ([e[1] unsignedIntegerValue] == evc.document.encoding
+                      && [e[2] boolValue] == evc.document.hasBOM)
+                     ? NSControlStateValueOn : NSControlStateValueOff;
+        return YES;
+    }
+    if (a == @selector(menuReloadWithEncoding:)) {
+        return evc != nil && evc.document.fileURL != nil;
+    }
+    if (a == @selector(menuToggleFold:) || a == @selector(menuFoldAll:) || a == @selector(menuUnfoldAll:)) {
+        return evc != nil;
+    }
+    if (a == @selector(menuToggleColumnMode:)) {
+        if (!evc) return NO;
+        item.state = evc.columnMode ? NSControlStateValueOn : NSControlStateValueOff;
+        return YES;
+    }
     return YES;
 }
 
@@ -492,6 +859,7 @@ static const NSInteger kMaxRecentFiles = 10;
         [[NSAlert alertWithError:err] runModal];
     } else {
         [self updateCurrentTabTitle];
+        [self updateStatusBar];
     }
 }
 
@@ -513,15 +881,15 @@ static const NSInteger kMaxRecentFiles = 10;
 - (void)updateStatusBar {
     EditorViewController *evc = [self currentEditor];
     if (!evc) return;
-    NSString *lang = [[LexerManager shared] languageNameForExtension:
-                      evc.document.fileURL.pathExtension ?: @""];
-    NSString *enc  = [NSString localizedNameOfStringEncoding:evc.document.encoding];
-    NSInteger eol  = [evc eolMode];
+    NSString *lang   = [[LexerManager shared] languageNameForExtension:
+                        evc.document.fileURL.pathExtension ?: @""];
+    NSInteger eol    = [evc eolMode];
     NSString *eolStr = (eol == SC_EOL_CRLF) ? @"CRLF" : (eol == SC_EOL_CR) ? @"CR" : @"LF";
     _statusLabel.stringValue = [NSString stringWithFormat:
-        @"Ln %ld, Col %ld  |  %@  |  %@  |  %@  |  Lines: %ld",
+        @"Ln %ld, Col %ld  |  %@  |  %@  |  Lines: %ld",
         (long)[evc currentLine], (long)[evc currentColumn],
-        enc, lang, eolStr, (long)[evc totalLines]];
+        lang, eolStr, (long)[evc totalLines]];
+    _encodingBtn.title = NMShortEncodingName(evc.document.encoding, evc.document.hasBOM);
 }
 
 
@@ -617,6 +985,12 @@ static const NSInteger kMaxRecentFiles = 10;
     }
 }
 
+- (void)openDroppedURLs:(NSArray<NSURL *> *)urls {
+    for (NSURL *url in urls) {
+        [self openFileURL:url];
+    }
+}
+
 // MARK: – NSTabViewDelegate
 
 - (void)tabView:(NSTabView *)tabView didSelectTabViewItem:(NSTabViewItem *)tabViewItem {
@@ -626,6 +1000,10 @@ static const NSInteger kMaxRecentFiles = 10;
     if ([tabViewItem.identifier isKindOfClass:[EditorViewController class]]) {
         EditorViewController *evc = (EditorViewController *)tabViewItem.identifier;
         if (_findPanel.isVisible) _findPanel.editor = evc;
+        if (!_findBar.hidden) {
+            _findBar.editor = evc;
+            [self findBar:_findBar highlightAll:_findBar.findText];
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
             [evc focusEditor];
         });

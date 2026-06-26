@@ -320,21 +320,184 @@
 
 // MARK: – Find & Replace
 
+// MARK: – Find & Replace (legacy wrappers)
+
 - (BOOL)findText:(NSString *)text matchCase:(BOOL)matchCase wholeWord:(BOOL)wholeWord forward:(BOOL)forward {
-    return [_editor findAndHighlightText:text
-                               matchCase:matchCase
-                               wholeWord:wholeWord
-                                scrollTo:YES
-                                    wrap:YES
-                               backwards:!forward];
+    NMFindOptions opts = (matchCase ? NMFindMatchCase : 0) | (wholeWord ? NMFindWholeWord : 0);
+    return [self findText:text options:opts forward:forward];
 }
 
 - (NSInteger)replaceAll:(NSString *)search with:(NSString *)replacement matchCase:(BOOL)matchCase wholeWord:(BOOL)wholeWord {
-    return [_editor findAndReplaceText:search
-                                byText:replacement
-                             matchCase:matchCase
-                             wholeWord:wholeWord
-                                 doAll:YES];
+    NMFindOptions opts = (matchCase ? NMFindMatchCase : 0) | (wholeWord ? NMFindWholeWord : 0);
+    return [self replaceAll:search with:replacement options:opts];
+}
+
+// MARK: – Find & Replace (full-featured, Scintilla target API)
+
+static const NSInteger kSearchIndicator = 9;
+
+- (int)_scFlagsForOptions:(NMFindOptions)opts {
+    int flags = 0;
+    if (opts & NMFindMatchCase) flags |= SCFIND_MATCHCASE;
+    if (opts & NMFindWholeWord) flags |= SCFIND_WHOLEWORD;
+    if (opts & NMFindRegex)     flags |= SCFIND_REGEXP | SCFIND_POSIX;
+    return flags;
+}
+
+- (BOOL)findText:(NSString *)text options:(NMFindOptions)opts forward:(BOOL)forward {
+    if (!text.length) return NO;
+    [_editor setGeneralProperty:SCI_SETSEARCHFLAGS value:[self _scFlagsForOptions:opts]];
+
+    const char *cstr = text.UTF8String;
+    long clen = (long)strlen(cstr);
+    long docLen   = [_editor getGeneralProperty:SCI_GETLENGTH];
+    long selStart = [_editor getGeneralProperty:SCI_GETSELECTIONSTART];
+    long selEnd   = [_editor getGeneralProperty:SCI_GETSELECTIONEND];
+
+    long found = -1;
+    if (forward) {
+        [_editor setGeneralProperty:SCI_SETTARGETSTART value:selEnd];
+        [_editor setGeneralProperty:SCI_SETTARGETEND   value:docLen];
+        found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        if (found < 0) { // wrap around
+            [_editor setGeneralProperty:SCI_SETTARGETSTART value:0];
+            [_editor setGeneralProperty:SCI_SETTARGETEND   value:selStart];
+            found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        }
+    } else {
+        if (selStart > 0) {
+            [_editor setGeneralProperty:SCI_SETTARGETSTART value:selStart];
+            [_editor setGeneralProperty:SCI_SETTARGETEND   value:0];
+            found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        }
+        if (found < 0) { // wrap around
+            [_editor setGeneralProperty:SCI_SETTARGETSTART value:docLen];
+            [_editor setGeneralProperty:SCI_SETTARGETEND   value:selEnd];
+            found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        }
+    }
+
+    if (found < 0) return NO;
+    long matchStart = [_editor getGeneralProperty:SCI_GETTARGETSTART];
+    long matchEnd   = [_editor getGeneralProperty:SCI_GETTARGETEND];
+    [_editor setGeneralProperty:SCI_SETSEL parameter:matchStart value:matchEnd];
+    [_editor setGeneralProperty:SCI_SCROLLCARET value:0];
+    return YES;
+}
+
+- (NSInteger)replaceAll:(NSString *)search with:(NSString *)replacement options:(NMFindOptions)opts {
+    if (!search.length) return 0;
+    [_editor setGeneralProperty:SCI_SETSEARCHFLAGS value:[self _scFlagsForOptions:opts]];
+
+    const char *cstr = search.UTF8String;
+    long clen = (long)strlen(cstr);
+    const char *rstr = replacement.UTF8String;
+    long rlen = (long)strlen(rstr);
+    NSInteger replaceMsg = (opts & NMFindRegex) ? SCI_REPLACETARGETRE : SCI_REPLACETARGET;
+
+    long docLen = [_editor getGeneralProperty:SCI_GETLENGTH];
+    NSInteger count = 0;
+    long pos = 0;
+
+    while (pos <= docLen) {
+        [_editor setGeneralProperty:SCI_SETTARGETSTART value:pos];
+        [_editor setGeneralProperty:SCI_SETTARGETEND   value:docLen];
+        long found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        if (found < 0) break;
+
+        long mEnd = [_editor getGeneralProperty:SCI_GETTARGETEND];
+        [ScintillaView directCall:_editor message:replaceMsg wParam:rlen lParam:(sptr_t)rstr];
+
+        // After replacement the doc length changes; get new target end
+        long newEnd = [_editor getGeneralProperty:SCI_GETTARGETEND];
+        docLen = [_editor getGeneralProperty:SCI_GETLENGTH];
+        pos = (mEnd == found) ? found + 1 : newEnd; // guard against zero-length match
+        count++;
+    }
+
+    if (count > 0) {
+        _document.hasUnsavedChanges = YES;
+        [_delegate editorDidChangeContent:self];
+    }
+    return count;
+}
+
+- (BOOL)replaceCurrentAndFindNext:(NSString *)search replacement:(NSString *)replacement options:(NMFindOptions)opts {
+    if (!search.length) return NO;
+    [_editor setGeneralProperty:SCI_SETSEARCHFLAGS value:[self _scFlagsForOptions:opts]];
+
+    long selStart = [_editor getGeneralProperty:SCI_GETSELECTIONSTART];
+    long selEnd   = [_editor getGeneralProperty:SCI_GETSELECTIONEND];
+
+    if (selStart < selEnd) {
+        const char *cstr = search.UTF8String;
+        long clen = (long)strlen(cstr);
+        [_editor setGeneralProperty:SCI_SETTARGETSTART value:selStart];
+        [_editor setGeneralProperty:SCI_SETTARGETEND   value:selEnd];
+        long found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        if (found == selStart) {
+            NSInteger replaceMsg = (opts & NMFindRegex) ? SCI_REPLACETARGETRE : SCI_REPLACETARGET;
+            const char *rstr = replacement.UTF8String;
+            long rlen = (long)strlen(rstr);
+            [ScintillaView directCall:_editor message:replaceMsg wParam:rlen lParam:(sptr_t)rstr];
+            _document.hasUnsavedChanges = YES;
+            [_delegate editorDidChangeContent:self];
+        }
+    }
+    return [self findText:search options:opts forward:YES];
+}
+
+- (NSInteger)countMatches:(NSString *)text options:(NMFindOptions)opts {
+    return [self _searchAllMatches:text options:opts highlight:NO];
+}
+
+- (void)highlightAllMatches:(NSString *)text options:(NMFindOptions)opts {
+    if (!text.length) { [self clearSearchHighlights]; return; }
+    [self _searchAllMatches:text options:opts highlight:YES];
+}
+
+- (void)clearSearchHighlights {
+    long docLen = [_editor getGeneralProperty:SCI_GETLENGTH];
+    [_editor setGeneralProperty:SCI_SETINDICATORCURRENT value:kSearchIndicator];
+    [ScintillaView directCall:_editor message:SCI_INDICATORCLEARRANGE wParam:0 lParam:docLen];
+}
+
+- (NSInteger)_searchAllMatches:(NSString *)text options:(NMFindOptions)opts highlight:(BOOL)highlight {
+    [_editor setGeneralProperty:SCI_SETSEARCHFLAGS value:[self _scFlagsForOptions:opts]];
+
+    if (highlight) {
+        // Warm yellow (R=255 G=200 B=0 → Scintilla RGB = R|(G<<8)|(B<<16))
+        long color = 255 | (200 << 8) | (0 << 16);
+        [_editor setGeneralProperty:SCI_INDICSETSTYLE  parameter:kSearchIndicator value:INDIC_ROUNDBOX];
+        [_editor setGeneralProperty:SCI_INDICSETFORE   parameter:kSearchIndicator value:color];
+        [_editor setGeneralProperty:SCI_INDICSETALPHA  parameter:kSearchIndicator value:120];
+        [_editor setGeneralProperty:SCI_SETINDICATORCURRENT value:kSearchIndicator];
+        long docLen = [_editor getGeneralProperty:SCI_GETLENGTH];
+        [ScintillaView directCall:_editor message:SCI_INDICATORCLEARRANGE wParam:0 lParam:docLen];
+    }
+
+    const char *cstr = text.UTF8String;
+    long clen = (long)strlen(cstr);
+    long docLen = [_editor getGeneralProperty:SCI_GETLENGTH];
+    NSInteger count = 0;
+    long pos = 0;
+
+    while (pos <= docLen) {
+        [_editor setGeneralProperty:SCI_SETTARGETSTART value:pos];
+        [_editor setGeneralProperty:SCI_SETTARGETEND   value:docLen];
+        long found = [ScintillaView directCall:_editor message:SCI_SEARCHINTARGET wParam:clen lParam:(sptr_t)cstr];
+        if (found < 0) break;
+
+        long mEnd = [_editor getGeneralProperty:SCI_GETTARGETEND];
+        long mLen = mEnd - found;
+
+        if (highlight && mLen > 0) {
+            [ScintillaView directCall:_editor message:SCI_INDICATORFILLRANGE wParam:found lParam:mLen];
+        }
+        count++;
+        pos = (mLen > 0) ? mEnd : found + 1;
+    }
+    return count;
 }
 
 // MARK: – Editor state
@@ -480,6 +643,42 @@
     [_editor setGeneralProperty:SCI_CONVERTEOLS value:mode];
     _document.hasUnsavedChanges = YES;
     [_delegate editorDidChangeContent:self];
+}
+
+// MARK: – Code folding
+
+- (void)foldAll {
+    [ScintillaView directCall:_editor message:SCI_FOLDALL wParam:SC_FOLDACTION_CONTRACT lParam:0];
+}
+
+- (void)unfoldAll {
+    [ScintillaView directCall:_editor message:SCI_FOLDALL wParam:SC_FOLDACTION_EXPAND lParam:0];
+}
+
+- (void)toggleFoldAtCursor {
+    long caret = [_editor getGeneralProperty:SCI_GETCURRENTPOS];
+    long line  = [ScintillaView directCall:_editor message:SCI_LINEFROMPOSITION wParam:(uptr_t)caret lParam:0];
+    long level = [ScintillaView directCall:_editor message:SCI_GETFOLDLEVEL wParam:(uptr_t)line lParam:0];
+    if (level & SC_FOLDLEVELHEADERFLAG) {
+        [ScintillaView directCall:_editor message:SCI_TOGGLEFOLD wParam:(uptr_t)line lParam:0];
+    }
+}
+
+// MARK: – Column / block selection mode
+
+- (void)setColumnMode:(BOOL)on {
+    [ScintillaView directCall:_editor message:SCI_SETSELECTIONMODE
+                       wParam:on ? SC_SEL_RECTANGLE : SC_SEL_STREAM
+                       lParam:0];
+    // Virtual space lets rectangular selection extend beyond line ends
+    [_editor setGeneralProperty:SCI_SETVIRTUALSPACEOPTIONS
+                          value:on ? SCVS_RECTANGULARSELECTION : SCVS_NONE];
+}
+
+- (BOOL)columnMode {
+    long mode = [ScintillaView directCall:_editor message:SCI_GETSELECTIONMODE wParam:0 lParam:0];
+    // SC_SEL_THIN (3) is a collapsed rectangular selection — still column mode.
+    return mode == SC_SEL_RECTANGLE || mode == SC_SEL_THIN;
 }
 
 // MARK: – Appearance change
