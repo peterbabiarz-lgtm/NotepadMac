@@ -22,11 +22,17 @@ static NSString *const kSessionKey = @"SessionFiles";
     NSArray<NSString *> *session = [[NSUserDefaults standardUserDefaults] arrayForKey:kSessionKey];
     BOOL restored = NO;
     for (NSString *path in session) {
-        NSURL *url = [NSURL fileURLWithPath:path];
-        if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
-            [_windowController openFileURL:url];
-            restored = YES;
-        }
+        // The session list lives in user defaults, which any process running as
+        // the user can write. Only auto-open plain regular files — never
+        // directories, devices, FIFOs, or other special paths.
+        if (![path isKindOfClass:[NSString class]]) continue;
+        BOOL isDir = NO;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir] || isDir) continue;
+        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+        if (![attrs[NSFileType] isEqual:NSFileTypeRegular]) continue;
+
+        [_windowController openFileURL:[NSURL fileURLWithPath:path]];
+        restored = YES;
     }
     if (!restored) {
         [_windowController newDocument];

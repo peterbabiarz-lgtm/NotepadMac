@@ -1,6 +1,30 @@
 #import "Document.h"
+#import <sys/stat.h>
 
 static _Atomic int untitledCounter = 0;  // atomic: safe if ever opened from multiple threads
+
+// Reject files larger than this to avoid memory exhaustion: the bytes are held
+// once as NSData, again as the decoded NSString, and a third time inside
+// Scintilla, so peak RAM is roughly 3× the file size.
+static const unsigned long long kMaxOpenFileSize = 256ULL * 1024 * 1024;  // 256 MB
+
+// Returns YES if the file at url is within the size limit. On failure sets *error.
+static BOOL NMFileSizeWithinLimit(NSURL *url, NSError **error) {
+    NSNumber *sizeVal = nil;
+    if (![url getResourceValue:&sizeVal forKey:NSURLFileSizeKey error:error]) return NO;
+    if (sizeVal && sizeVal.unsignedLongLongValue > kMaxOpenFileSize) {
+        if (error) {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain
+                                         code:NSFileReadTooLargeError
+                                     userInfo:@{NSLocalizedDescriptionKey:
+                          [NSString stringWithFormat:
+                           @"Die Datei ist zu groß zum Öffnen (max. %llu MB).",
+                           kMaxOpenFileSize / (1024 * 1024)]}];
+        }
+        return NO;
+    }
+    return YES;
+}
 
 @implementation Document {
     NSString *_untitledName;
@@ -21,6 +45,8 @@ static _Atomic int untitledCounter = 0;  // atomic: safe if ever opened from mul
     self = [super init];
     if (!self) return nil;
     _fileURL = url;
+
+    if (!NMFileSizeWithinLimit(url, error)) return nil;
 
     NSData *data = [NSData dataWithContentsOfURL:url options:0 error:error];
     if (!data) return nil;
@@ -135,7 +161,22 @@ static _Atomic int untitledCounter = 0;  // atomic: safe if ever opened from mul
         }
     }
 
+    // Capture the existing file's mode before the atomic write, which replaces
+    // the inode and would otherwise reset permissions to the default umask —
+    // silently widening a restricted file (e.g. 0600 secrets → 0644).
+    mode_t existingMode = 0;
+    struct stat st;
+    if (lstat(url.path.fileSystemRepresentation, &st) == 0 && S_ISREG(st.st_mode)) {
+        existingMode = st.st_mode & 07777;
+    }
+
     if (![data writeToURL:url options:NSDataWritingAtomic error:error]) return NO;
+
+    // Restore the original permissions onto the newly written file.
+    if (existingMode != 0) {
+        chmod(url.path.fileSystemRepresentation, existingMode);
+    }
+
     _fileURL = url;
     _hasUnsavedChanges = NO;
     return YES;
@@ -153,6 +194,7 @@ static _Atomic int untitledCounter = 0;  // atomic: safe if ever opened from mul
                                             userInfo:@{NSLocalizedDescriptionKey: @"Keine Datei zum Neu laden."}];
         return NO;
     }
+    if (!NMFileSizeWithinLimit(_fileURL, error)) return NO;
     NSData *data = [NSData dataWithContentsOfURL:_fileURL options:0 error:error];
     if (!data) return NO;
 

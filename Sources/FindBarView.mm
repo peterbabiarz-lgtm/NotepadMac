@@ -181,7 +181,14 @@
 }
 
 - (IBAction)close:(id)sender {
+    [self cancelPendingHighlight];
     [_delegate findBarDidClose:self];
+}
+
+- (void)cancelPendingHighlight {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                             selector:@selector(performHighlight)
+                                               object:nil];
 }
 
 // MARK: – NSTextFieldDelegate (live search)
@@ -206,6 +213,7 @@
         }
     }
     if (cmd == @selector(cancelOperation:)) {
+        [self cancelPendingHighlight];
         [_delegate findBarDidClose:self];
         return YES;
     }
@@ -215,6 +223,16 @@
 // MARK: – Helpers
 
 - (void)triggerHighlight {
+    // Debounce: a full-document search runs synchronously on the main thread,
+    // so firing it on every keystroke (especially with a costly regex) can
+    // freeze the UI. Coalesce rapid input into a single deferred search.
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                             selector:@selector(performHighlight)
+                                               object:nil];
+    [self performSelector:@selector(performHighlight) withObject:nil afterDelay:0.18];
+}
+
+- (void)performHighlight {
     [_delegate findBar:self highlightAll:_findField.stringValue];
 }
 

@@ -170,6 +170,22 @@ Wartbarkeits- und Performance-Verbesserung der Encoding-Funktionen (minimale, ge
 | Wartbarkeit | Encoding-Menü-Aufbau (4× dupliziert) in einen gemeinsamen Helfer `addEncodingItemsToMenu:action:` zusammengefasst; Checkmark/Enable-Status wird zentral über `validateMenuItem:` aufgelöst statt an mehreren Stellen dupliziert |
 | Performance | `menuConvertToEncoding:` nutzt `canBeConvertedToEncoding:` statt eine vollständige `NSData`-Kopie des Dokuments zu allokieren und sofort zu verwerfen (spürbar bei großen Dateien) |
 
+### Security-Review v1.7.3
+
+Ein Security-Audit (Schwachstellen, unsichere Muster, Angriffsfläche) führte zu folgenden Härtungen:
+
+| # | Datei | Problem | Fix |
+|---|-------|---------|-----|
+| 1 | `Document.mm` | Kein Größenlimit beim Öffnen → Speicher-Erschöpfung (DoS) bei sehr großen/bösartigen Dateien | 256-MB-Limit (`NMFileSizeWithinLimit`) vor dem Einlesen, im Öffnen- und Reload-Pfad |
+| 2 | `FindInFilesPanel.mm` | Suchtreffer-Pfad wurde an `NSWorkspace openURL:` übergeben → ausführbare Datei/`.app`/Skript könnte per Standard-Handler gestartet werden | `openURL:` entfernt; Treffer öffnen nur noch im eigenen Editor |
+| 3 | `Document.mm` | Atomares Speichern setzte Dateirechte zurück → ein `0600`-Geheimnis konnte auf `0644` aufgeweitet werden | Original-Modus per `lstat` sichern, nach dem Schreiben per `chmod` wiederherstellen |
+| 4 | `AppDelegate.mm` | Session-Wiederherstellung öffnete jeden in den User-Defaults hinterlegten Pfad (von jedem Nutzer-Prozess beschreibbar) | Nur reguläre Dateien öffnen – keine Verzeichnisse, Geräte, FIFOs |
+| 5 | `FindBarView.mm` | Live-Highlight scannte das ganze Dokument synchron bei **jedem Tastendruck** (ReDoS-artiger Main-Thread-Freeze) | Auf 0,18 s entprellt (debounced) und beim Schließen abgebrochen |
+| 6 | `Info.plist` | `NSAllowsArbitraryLoads = true` (ATS global deaktiviert, obwohl die App nicht netzwerkt) | `NSAppTransportSecurity`-Block entfernt |
+| 7 | `Makefile` | Unsigniertes Binary ohne Laufzeit-Schutz | Ad-hoc-Code-Signing + **Hardened Runtime** (`flags=0x10002(adhoc,runtime)`); via `make CODESIGN_ID="Developer ID…"` mit echtem Zertifikat signierbar |
+
+**Hinweise zur Distribution:** Das Release ist ad-hoc signiert mit Hardened Runtime, aber **nicht notarisiert** (erfordert eine kostenpflichtige Apple Developer ID) – daher weiterhin **Rechtsklick → Öffnen** beim ersten Start. Die **App-Sandbox** ist bewusst noch nicht aktiviert: Sie würde die Compare-Funktion (`NSTask` → `/usr/bin/diff`) sowie „Zuletzt geöffnet"/Session-Wiederherstellung (benötigt Security-Scoped Bookmarks) brechen – eine saubere Sandbox-Migration ist als eigener Schritt geplant.
+
 ## Lizenz
 
 MIT

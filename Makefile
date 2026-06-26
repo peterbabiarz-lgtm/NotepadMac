@@ -75,10 +75,28 @@ APP_CXX_OBJ  := $(OBJ_DIR)/app/LexUserStub.o
 
 ALL_OBJS := $(SCI_OBJS) $(SCI_COC_OBJS) $(LEX_OBJS) $(APP_OBJS) $(APP_CXX_OBJ)
 
-# ── Targets ──────────────────────────────────────────────────────────────────
-.PHONY: all clean run
+# ── Code signing ───────────────────────────────────────────────────────────
+# Ad-hoc by default ("-"); override with a Developer ID for distribution:
+#   make CODESIGN_ID="Developer ID Application: Your Name (TEAMID)"
+# Hardened Runtime is enabled regardless — it adds runtime protections
+# (library validation, no unsigned executable memory, env-var hardening) and,
+# unlike the App Sandbox, does not block the NSTask-based Compare feature.
+CODESIGN_ID ?= -
 
-all: $(APP_DIR)/Contents/MacOS/NotepadMac $(CONTENTS)/Info.plist $(RES_DIR)/AppIcon.icns
+# ── Targets ──────────────────────────────────────────────────────────────────
+.PHONY: all bundle sign clean run
+
+all: sign
+
+bundle: $(APP_DIR)/Contents/MacOS/NotepadMac $(CONTENTS)/Info.plist $(RES_DIR)/AppIcon.icns
+
+# Sign the fully assembled bundle. Must run after Info.plist/icns are in place,
+# since the signature covers the whole bundle.
+sign: bundle
+	@echo "[CODESIGN] $(APP_DIR)  (identity: $(CODESIGN_ID))"
+	@codesign --force --options runtime --timestamp --sign $(CODESIGN_ID) $(APP_DIR) 2>/dev/null \
+	  || codesign --force --options runtime --sign $(CODESIGN_ID) $(APP_DIR)
+	@codesign --verify --strict --verbose=1 $(APP_DIR) && echo "✓ Signed & verified ($(APP_DIR))"
 
 # Always copy Info.plist so version changes take effect without a full relink
 $(CONTENTS)/Info.plist: Resources/Info.plist | dirs

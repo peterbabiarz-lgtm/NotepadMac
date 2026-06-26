@@ -255,11 +255,11 @@
         [self toggleExpansionAt:row];
         return;
     }
-    // Open file in editor
+    // Open the match inside our own editor only. Do NOT hand the path to
+    // NSWorkspace/Launch Services — a search hit could be an executable, .app,
+    // or script whose default handler would run it.
     NSString *path = r.result.filePath;
     NSInteger line = r.result.lineNumber;
-    [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:path]];
-    // Notify WindowController to open file and jump to line
     [[NSNotificationCenter defaultCenter]
         postNotificationName:@"NMOpenFileAtLine"
                       object:nil
