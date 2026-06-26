@@ -105,18 +105,6 @@ Nach der Implementierung wurde ein automatisches Code-Review durchgeführt, das 
 
 Alle 9 wurden in v1.1.0 behoben.
 
-### Code-Review v1.6.1
-
-Ein drittes Code-Review (5 Findings) wurde in v1.6.1 vollständig behoben:
-
-| # | Datei | Problem | Schwere |
-|---|-------|---------|---------|
-| 1 | `WindowController.mm` | `autoSaveAll` aktualisierte `item.label` ohne `syncTabBar` → Tab-Titel zeigte nach dem Auto-Save weiterhin das •-Symbol | Hoch |
-| 2 | `TabBarView.mm` | `NSTrackingActiveInKeyWindow` → Hover-Effekt fror ein wenn das Fenster den Fokus verlor | Mittel |
-| 3 | `WindowController.mm` | `syncTabBar` wurde bei jedem Tab-Klick doppelt aufgerufen (NSTabView-Delegate feuert synchron) | Mittel |
-| 4 | `WindowController.mm` | `syncTabBar` speicherte `NSNotFound` (= NSIntegerMax) als `selectedIndex` wenn kein Tab selektiert war → kein Tab erschien visuell ausgewählt | Niedrig |
-| 5 | `TabBarView.mm` | `_hoveredIndex` wurde nach dem Schließen eines Tabs nicht zurückgesetzt → Hover-Highlight auf nicht mehr existierendem Tab | Niedrig |
-
 ### Code-Review v1.4.1
 
 Ein zweites Code-Review (13 Findings) wurde in v1.4.1 vollständig behoben:
@@ -136,6 +124,18 @@ Ein zweites Code-Review (13 Findings) wurde in v1.4.1 vollständig behoben:
 | 11 | `WindowController.mm` | Ungeprüfter Cast auf Tab-Identifier in `updateCurrentTabTitle`/`saveSession` | Mittel |
 | 12 | `WindowController.mm` | Notification-Observer `NMOpenFileAtLine` wurde in `dealloc` nie entfernt | Mittel |
 | 13 | `CompareViewController.mm` | Gleiche `colorUsingColorSpace:` Nil-Dereference wie #10 | Mittel |
+
+### Code-Review v1.6.1
+
+Ein drittes Code-Review (5 Findings) wurde in v1.6.1 vollständig behoben:
+
+| # | Datei | Problem | Schwere |
+|---|-------|---------|---------|
+| 1 | `WindowController.mm` | `autoSaveAll` aktualisierte `item.label` ohne `syncTabBar` → Tab-Titel zeigte nach dem Auto-Save weiterhin das •-Symbol | Hoch |
+| 2 | `TabBarView.mm` | `NSTrackingActiveInKeyWindow` → Hover-Effekt fror ein wenn das Fenster den Fokus verlor | Mittel |
+| 3 | `WindowController.mm` | `syncTabBar` wurde bei jedem Tab-Klick doppelt aufgerufen (NSTabView-Delegate feuert synchron) | Mittel |
+| 4 | `WindowController.mm` | `syncTabBar` speicherte `NSNotFound` (= NSIntegerMax) als `selectedIndex` wenn kein Tab selektiert war → kein Tab erschien visuell ausgewählt | Niedrig |
+| 5 | `TabBarView.mm` | `_hoveredIndex` wurde nach dem Schließen eines Tabs nicht zurückgesetzt → Hover-Highlight auf nicht mehr existierendem Tab | Niedrig |
 
 ## Lizenz
 
