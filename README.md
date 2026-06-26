@@ -19,6 +19,7 @@ Ein nativer macOS Text-Editor inspiriert von [Notepad++](https://notepad-plus-pl
 - **Brace-Matching** – passende Klammern `{[()]}` werden beim Cursor farbig hervorgehoben (blau = gefunden, rot = kein Match)
 - **Linienlängen-Guide** (Ansicht → Edge Column at 80) – vertikale Orientierungslinie bei Spalte 80, umschaltbar
 - **EOL-Konvertierung** (Format → Line Endings) – zwischen Unix (LF), Windows (CRLF) und Classic Mac (CR) konvertieren; aktueller Modus in der Statusleiste sichtbar
+- **Tab-Close-Buttons** – jeder Tab hat ein × direkt auf dem Tab zum sofortigen Schließen; × erscheint immer auf dem aktiven Tab und bei Hover auf inaktiven Tabs
 
 ## Installation
 

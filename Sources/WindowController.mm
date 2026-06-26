@@ -6,9 +6,10 @@
 #import "CompareViewController.h"
 #import "Document.h"
 #import "LexerManager.h"
+#import "TabBarView.h"
 #include "Scintilla.h"
 
-@interface WindowController () <NSTabViewDelegate, EditorViewControllerDelegate>
+@interface WindowController () <NSTabViewDelegate, EditorViewControllerDelegate, TabBarViewDelegate>
 @end
 
 static NSString *const kRecentFilesKey = @"RecentFiles";
@@ -16,6 +17,7 @@ static const NSInteger kMaxRecentFiles = 10;
 
 @implementation WindowController {
     NSTabView             *_tabView;
+    TabBarView            *_tabBar;
     NSTextField           *_statusLabel;
     FindReplacePanel      *_findPanel;
     NSMutableArray<EditorViewController *> *_editors;
@@ -58,29 +60,38 @@ static const NSInteger kMaxRecentFiles = 10;
 
 - (void)buildUI {
     NSView *content = self.window.contentView;
+    CGFloat W = content.bounds.size.width;
+    CGFloat H = content.bounds.size.height;
 
     // Status bar at bottom
-    NSView *statusBar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, content.bounds.size.width, 22)];
+    NSView *statusBar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, W, 22)];
     statusBar.autoresizingMask = NSViewWidthSizable;
     [content addSubview:statusBar];
 
-    NSBox *separator = [[NSBox alloc] initWithFrame:NSMakeRect(0, 21, content.bounds.size.width, 1)];
+    NSBox *separator = [[NSBox alloc] initWithFrame:NSMakeRect(0, 21, W, 1)];
     separator.boxType = NSBoxSeparator;
     separator.autoresizingMask = NSViewWidthSizable;
     [content addSubview:separator];
 
     _statusLabel = [NSTextField labelWithString:@"Ln 1, Col 1  |  UTF-8  |  Plain Text"];
-    _statusLabel.frame = NSMakeRect(8, 2, content.bounds.size.width - 16, 18);
+    _statusLabel.frame = NSMakeRect(8, 2, W - 16, 18);
     _statusLabel.autoresizingMask = NSViewWidthSizable;
     _statusLabel.font = [NSFont systemFontOfSize:11];
     _statusLabel.textColor = NSColor.secondaryLabelColor;
     [statusBar addSubview:_statusLabel];
 
-    // Tab view above status bar
-    CGFloat tabH = content.bounds.size.height - 23;
-    _tabView = [[NSTabView alloc] initWithFrame:NSMakeRect(0, 23, content.bounds.size.width, tabH)];
+    // Custom tab bar at top
+    static const CGFloat kTabBarH = 33.0;
+    _tabBar = [[TabBarView alloc] initWithFrame:NSMakeRect(0, H - kTabBarH, W, kTabBarH)];
+    _tabBar.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+    _tabBar.delegate = self;
+    [content addSubview:_tabBar];
+
+    // Tab view between status bar and tab bar (no built-in tab chrome)
+    CGFloat tvH = H - 23 - kTabBarH;
+    _tabView = [[NSTabView alloc] initWithFrame:NSMakeRect(0, 23, W, tvH)];
     _tabView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _tabView.tabViewType = NSTopTabsBezelBorder;
+    _tabView.tabViewType = NSNoTabsNoBorder;
     _tabView.delegate = self;
     [content addSubview:_tabView];
 }
@@ -206,6 +217,34 @@ static const NSInteger kMaxRecentFiles = 10;
     [NSApp setWindowsMenu:winMenu];
 }
 
+// MARK: – Tab bar sync
+
+- (void)syncTabBar {
+    NSInteger count = _tabView.numberOfTabViewItems;
+    NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithCapacity:count];
+    for (NSInteger i = 0; i < count; i++) {
+        NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
+        [titles addObject:item.label ?: @"Untitled"];
+    }
+    _tabBar.tabTitles   = titles;
+    NSInteger selIdx = [_tabView indexOfTabViewItem:_tabView.selectedTabViewItem];
+    _tabBar.selectedIndex = (selIdx == NSNotFound) ? -1 : selIdx;
+}
+
+// MARK: – TabBarViewDelegate
+
+- (void)tabBarView:(TabBarView *)bar didSelectIndex:(NSInteger)index {
+    if (index < 0 || index >= _tabView.numberOfTabViewItems) return;
+    // selectTabViewItemAtIndex: fires tabView:didSelectTabViewItem: synchronously,
+    // which already calls syncTabBar — no second call needed.
+    [_tabView selectTabViewItemAtIndex:index];
+}
+
+- (void)tabBarView:(TabBarView *)bar didCloseIndex:(NSInteger)index {
+    [self closeTabAtIndex:index];
+    [self syncTabBar];
+}
+
 // MARK: – Tab management
 
 - (void)newDocument {
@@ -229,6 +268,7 @@ static const NSInteger kMaxRecentFiles = 10;
     item.view  = editorView;
     [_tabView addTabViewItem:item];
     [_tabView selectTabViewItem:item];
+    [self syncTabBar];
     [self updateTitle];
 
     if (document.fileURL) {
@@ -284,6 +324,7 @@ static const NSInteger kMaxRecentFiles = 10;
 
     [_editors removeObject:evc];
     [_tabView removeTabViewItem:item];
+    [self syncTabBar];
 
     if (_tabView.numberOfTabViewItems == 0) {
         [self newDocument];
@@ -461,6 +502,7 @@ static const NSInteger kMaxRecentFiles = 10;
     EditorViewController *evc = (EditorViewController *)sel.identifier;
     NSString *name = evc.document.displayName;
     sel.label = evc.document.hasUnsavedChanges ? [name stringByAppendingString:@" •"] : name;
+    [self syncTabBar];
 }
 
 - (void)updateTitle {
@@ -578,6 +620,7 @@ static const NSInteger kMaxRecentFiles = 10;
 // MARK: – NSTabViewDelegate
 
 - (void)tabView:(NSTabView *)tabView didSelectTabViewItem:(NSTabViewItem *)tabViewItem {
+    [self syncTabBar];
     [self updateTitle];
     [self updateStatusBar];
     if ([tabViewItem.identifier isKindOfClass:[EditorViewController class]]) {
@@ -618,6 +661,7 @@ static const NSInteger kMaxRecentFiles = 10;
                         break;
                     }
                 }
+                [self syncTabBar];
             });
         }
     }
