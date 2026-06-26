@@ -316,24 +316,14 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     NSMenu *encConvMenu = [[NSMenu alloc] initWithTitle:@"Kodierung konvertieren"];
     encConvParent.submenu = encConvMenu;
     [fmtMenu addItem:encConvParent];
-    for (NSArray *e in NMEncodingTable()) {
-        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuConvertToEncoding:) keyEquivalent:@""];
-        mi.target = self;
-        mi.representedObject = e;
-        [encConvMenu addItem:mi];
-    }
+    [self addEncodingItemsToMenu:encConvMenu action:@selector(menuConvertToEncoding:)];
 
     // Encoding → Reload submenu
     NSMenuItem *encRldParent = [[NSMenuItem alloc] initWithTitle:@"Neu laden mit Kodierung" action:nil keyEquivalent:@""];
     NSMenu *encRldMenu = [[NSMenu alloc] initWithTitle:@"Neu laden mit Kodierung"];
     encRldParent.submenu = encRldMenu;
     [fmtMenu addItem:encRldParent];
-    for (NSArray *e in NMEncodingTable()) {
-        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuReloadWithEncoding:) keyEquivalent:@""];
-        mi.target = self;
-        mi.representedObject = e;
-        [encRldMenu addItem:mi];
-    }
+    [self addEncodingItemsToMenu:encRldMenu action:@selector(menuReloadWithEncoding:)];
 
     // ── View menu ─────────────────────────────────────────────────────────
     NSMenuItem *viewItem = [[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""];
@@ -709,9 +699,8 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     NSStringEncoding enc = [e[1] unsignedIntegerValue];
     BOOL bom = [e[2] boolValue];
     // Test live editor content, not the stale document snapshot.
-    NSString *liveContent = [evc currentContent];
-    NSData *test = [liveContent dataUsingEncoding:enc allowLossyConversion:NO];
-    if (!test) {
+    // canBeConvertedToEncoding: avoids materialising a full NSData copy.
+    if (![[evc currentContent] canBeConvertedToEncoding:enc]) {
         NSAlert *a = [NSAlert new];
         a.messageText = @"Konvertierung nicht möglich";
         a.informativeText = [NSString stringWithFormat:
@@ -757,42 +746,34 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     [self updateStatusBar];
 }
 
+// Populate a menu with one item per supported encoding. Checkmark and enabled
+// state are resolved by validateMenuItem: when the menu is displayed.
+- (void)addEncodingItemsToMenu:(NSMenu *)menu action:(SEL)action {
+    for (NSArray *e in NMEncodingTable()) {
+        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:action keyEquivalent:@""];
+        mi.target = self;
+        mi.representedObject = e;
+        [menu addItem:mi];
+    }
+}
+
 // Show encoding menu from the status bar button.
 - (IBAction)showEncodingMenu:(NSButton *)sender {
-    EditorViewController *evc = [self currentEditor];
-    if (!evc) return;
+    if (![self currentEditor]) return;
 
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Kodierung"];
 
     NSMenuItem *convHeader = [[NSMenuItem alloc] initWithTitle:@"Konvertieren zu:" action:nil keyEquivalent:@""];
     convHeader.enabled = NO;
     [menu addItem:convHeader];
-
-    NSStringEncoding curEnc = evc.document.encoding;
-    BOOL curBOM = evc.document.hasBOM;
-
-    for (NSArray *e in NMEncodingTable()) {
-        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuConvertToEncoding:) keyEquivalent:@""];
-        mi.target = self;
-        mi.representedObject = e;
-        if ([e[1] unsignedIntegerValue] == curEnc && [e[2] boolValue] == curBOM)
-            mi.state = NSControlStateValueOn;
-        [menu addItem:mi];
-    }
+    [self addEncodingItemsToMenu:menu action:@selector(menuConvertToEncoding:)];
 
     [menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *rldHeader = [[NSMenuItem alloc] initWithTitle:@"Neu laden mit:" action:nil keyEquivalent:@""];
     rldHeader.enabled = NO;
     [menu addItem:rldHeader];
-
-    for (NSArray *e in NMEncodingTable()) {
-        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:e[0] action:@selector(menuReloadWithEncoding:) keyEquivalent:@""];
-        mi.target = self;
-        mi.representedObject = e;
-        if (!evc.document.fileURL) mi.enabled = NO;
-        [menu addItem:mi];
-    }
+    [self addEncodingItemsToMenu:menu action:@selector(menuReloadWithEncoding:)];
 
     [menu popUpMenuPositioningItem:nil
                         atLocation:NSMakePoint(0, sender.bounds.size.height + 4)
