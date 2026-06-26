@@ -8,6 +8,8 @@
 #import "LexerManager.h"
 #import "TabBarView.h"
 #import "FindBarView.h"
+#import "LogAnalysisPanel.h"
+#import "ConfigParser.h"
 #include "Scintilla.h"
 
 // MARK: – File-drop overlay (transparent, sits on top, passes through mouse clicks)
@@ -232,68 +234,68 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     [mainMenu addItem:appItem];
     NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"Apple"];
     appItem.submenu = appMenu;
-    [appMenu addItemWithTitle:@"About NotepadMac"
+    [appMenu addItemWithTitle:@"Über NotepadMac"
                        action:@selector(orderFrontStandardAboutPanel:)
                 keyEquivalent:@""];
     [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"Hide NotepadMac"
+    [appMenu addItemWithTitle:@"NotepadMac ausblenden"
                        action:@selector(hide:)
                 keyEquivalent:@"h"];
-    NSMenuItem *hideOthers = [appMenu addItemWithTitle:@"Hide Others"
+    NSMenuItem *hideOthers = [appMenu addItemWithTitle:@"Andere ausblenden"
                                                 action:@selector(hideOtherApplications:)
                                          keyEquivalent:@"h"];
     hideOthers.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
-    [appMenu addItemWithTitle:@"Show All" action:@selector(unhideAllApplications:) keyEquivalent:@""];
+    [appMenu addItemWithTitle:@"Alle einblenden" action:@selector(unhideAllApplications:) keyEquivalent:@""];
     [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"Quit NotepadMac" action:@selector(terminate:) keyEquivalent:@"q"];
+    [appMenu addItemWithTitle:@"NotepadMac beenden" action:@selector(terminate:) keyEquivalent:@"q"];
 
     // ── File menu ─────────────────────────────────────────────────────────
-    NSMenuItem *fileItem = [[NSMenuItem alloc] initWithTitle:@"File" action:nil keyEquivalent:@""];
+    NSMenuItem *fileItem = [[NSMenuItem alloc] initWithTitle:@"Ablage" action:nil keyEquivalent:@""];
     [mainMenu addItem:fileItem];
-    NSMenu *fileMenu = [[NSMenu alloc] initWithTitle:@"File"];
+    NSMenu *fileMenu = [[NSMenu alloc] initWithTitle:@"Ablage"];
     fileItem.submenu = fileMenu;
-    [fileMenu addItemWithTitle:@"New"   action:@selector(menuNew:)  keyEquivalent:@"n"].target = self;
-    [fileMenu addItemWithTitle:@"Open…" action:@selector(menuOpen:) keyEquivalent:@"o"].target = self;
+    [fileMenu addItemWithTitle:@"Neu"       action:@selector(menuNew:)  keyEquivalent:@"n"].target = self;
+    [fileMenu addItemWithTitle:@"Öffnen…"   action:@selector(menuOpen:) keyEquivalent:@"o"].target = self;
 
-    // Open Recent submenu
-    NSMenuItem *recentItem = [[NSMenuItem alloc] initWithTitle:@"Open Recent" action:nil keyEquivalent:@""];
-    _recentFilesMenu = [[NSMenu alloc] initWithTitle:@"Open Recent"];
+    // Zuletzt geöffnet-Untermenü
+    NSMenuItem *recentItem = [[NSMenuItem alloc] initWithTitle:@"Zuletzt geöffnet" action:nil keyEquivalent:@""];
+    _recentFilesMenu = [[NSMenu alloc] initWithTitle:@"Zuletzt geöffnet"];
     recentItem.submenu = _recentFilesMenu;
     [fileMenu addItem:recentItem];
     [self rebuildRecentFilesMenu];
 
     [fileMenu addItem:[NSMenuItem separatorItem]];
-    [fileMenu addItemWithTitle:@"Save"  action:@selector(menuSave:) keyEquivalent:@"s"].target = self;
-    NSMenuItem *saveAs = [fileMenu addItemWithTitle:@"Save As…"
+    [fileMenu addItemWithTitle:@"Sichern"         action:@selector(menuSave:) keyEquivalent:@"s"].target = self;
+    NSMenuItem *saveAs = [fileMenu addItemWithTitle:@"Sichern unter…"
                                              action:@selector(menuSaveAs:)
                                       keyEquivalent:@"S"];   // ⇧⌘S
     saveAs.target = self;
     [fileMenu addItem:[NSMenuItem separatorItem]];
-    [fileMenu addItemWithTitle:@"Close Tab"
+    [fileMenu addItemWithTitle:@"Tab schließen"
                         action:@selector(menuCloseTab:)
                  keyEquivalent:@"w"].target = self;
 
     // ── Edit menu ─────────────────────────────────────────────────────────
-    NSMenuItem *editItem = [[NSMenuItem alloc] initWithTitle:@"Edit" action:nil keyEquivalent:@""];
+    NSMenuItem *editItem = [[NSMenuItem alloc] initWithTitle:@"Bearbeiten" action:nil keyEquivalent:@""];
     [mainMenu addItem:editItem];
-    NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
+    NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Bearbeiten"];
     editItem.submenu = editMenu;
-    // Undo/Redo go through the responder chain to the first responder (ScintillaView handles them)
-    [editMenu addItemWithTitle:@"Undo" action:@selector(undo:) keyEquivalent:@"z"];
-    NSMenuItem *redo = [editMenu addItemWithTitle:@"Redo" action:@selector(redo:) keyEquivalent:@"Z"];
+    // Undo/Redo gehen durch die Responder-Chain (ScintillaView behandelt sie)
+    [editMenu addItemWithTitle:@"Widerrufen" action:@selector(undo:) keyEquivalent:@"z"];
+    NSMenuItem *redo = [editMenu addItemWithTitle:@"Wiederholen" action:@selector(redo:) keyEquivalent:@"Z"];
     redo.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
     [editMenu addItem:[NSMenuItem separatorItem]];
-    [editMenu addItemWithTitle:@"Cut"        action:@selector(cut:)       keyEquivalent:@"x"];
-    [editMenu addItemWithTitle:@"Copy"       action:@selector(copy:)      keyEquivalent:@"c"];
-    [editMenu addItemWithTitle:@"Paste"      action:@selector(paste:)     keyEquivalent:@"v"];
-    [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
+    [editMenu addItemWithTitle:@"Ausschneiden" action:@selector(cut:)       keyEquivalent:@"x"];
+    [editMenu addItemWithTitle:@"Kopieren"     action:@selector(copy:)      keyEquivalent:@"c"];
+    [editMenu addItemWithTitle:@"Einsetzen"    action:@selector(paste:)     keyEquivalent:@"v"];
+    [editMenu addItemWithTitle:@"Alles auswählen" action:@selector(selectAll:) keyEquivalent:@"a"];
     [editMenu addItem:[NSMenuItem separatorItem]];
-    [editMenu addItemWithTitle:@"Find…"          action:@selector(menuFind:)        keyEquivalent:@"f"].target = self;
-    NSMenuItem *fif = [editMenu addItemWithTitle:@"Find in Files…"
+    [editMenu addItemWithTitle:@"Suchen…"              action:@selector(menuFind:)        keyEquivalent:@"f"].target = self;
+    NSMenuItem *fif = [editMenu addItemWithTitle:@"In Dateien suchen…"
                                           action:@selector(menuFindInFiles:)
                                    keyEquivalent:@"F"];  // ⇧⌘F
     fif.target = self;
-    [editMenu addItemWithTitle:@"Go to Line…"  action:@selector(menuGoToLine:)  keyEquivalent:@"g"].target = self;
+    [editMenu addItemWithTitle:@"Gehe zu Zeile…" action:@selector(menuGoToLine:) keyEquivalent:@"g"].target = self;
 
     // ── Format menu ───────────────────────────────────────────────────────
     NSMenuItem *fmtItem = [[NSMenuItem alloc] initWithTitle:@"Format" action:nil keyEquivalent:@""];
@@ -301,13 +303,13 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     NSMenu *fmtMenu = [[NSMenu alloc] initWithTitle:@"Format"];
     fmtItem.submenu = fmtMenu;
 
-    NSMenuItem *eolParent = [[NSMenuItem alloc] initWithTitle:@"Line Endings" action:nil keyEquivalent:@""];
-    NSMenu *eolMenu = [[NSMenu alloc] initWithTitle:@"Line Endings"];
+    NSMenuItem *eolParent = [[NSMenuItem alloc] initWithTitle:@"Zeilenenden" action:nil keyEquivalent:@""];
+    NSMenu *eolMenu = [[NSMenu alloc] initWithTitle:@"Zeilenenden"];
     eolParent.submenu = eolMenu;
     [fmtMenu addItem:eolParent];
-    [[eolMenu addItemWithTitle:@"Unix (LF)"       action:@selector(menuSetEolLF:)   keyEquivalent:@""] setTarget:self];
-    [[eolMenu addItemWithTitle:@"Windows (CRLF)"  action:@selector(menuSetEolCRLF:) keyEquivalent:@""] setTarget:self];
-    [[eolMenu addItemWithTitle:@"Classic Mac (CR)" action:@selector(menuSetEolCR:)  keyEquivalent:@""] setTarget:self];
+    [[eolMenu addItemWithTitle:@"Unix (LF)"        action:@selector(menuSetEolLF:)   keyEquivalent:@""] setTarget:self];
+    [[eolMenu addItemWithTitle:@"Windows (CRLF)"   action:@selector(menuSetEolCRLF:) keyEquivalent:@""] setTarget:self];
+    [[eolMenu addItemWithTitle:@"Classic Mac (CR)" action:@selector(menuSetEolCR:)   keyEquivalent:@""] setTarget:self];
 
     [fmtMenu addItem:[NSMenuItem separatorItem]];
 
@@ -326,18 +328,18 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     [self addEncodingItemsToMenu:encRldMenu action:@selector(menuReloadWithEncoding:)];
 
     // ── View menu ─────────────────────────────────────────────────────────
-    NSMenuItem *viewItem = [[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""];
+    NSMenuItem *viewItem = [[NSMenuItem alloc] initWithTitle:@"Darstellung" action:nil keyEquivalent:@""];
     [mainMenu addItem:viewItem];
-    NSMenu *viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
+    NSMenu *viewMenu = [[NSMenu alloc] initWithTitle:@"Darstellung"];
     viewItem.submenu = viewMenu;
-    [viewMenu addItemWithTitle:@"Increase Font Size" action:@selector(menuFontBigger:)  keyEquivalent:@"+"].target = self;
-    [viewMenu addItemWithTitle:@"Decrease Font Size" action:@selector(menuFontSmaller:) keyEquivalent:@"-"].target = self;
-    [viewMenu addItemWithTitle:@"Reset Font Size"    action:@selector(menuFontReset:)   keyEquivalent:@"0"].target = self;
+    [viewMenu addItemWithTitle:@"Schrift vergrößern"    action:@selector(menuFontBigger:)  keyEquivalent:@"+"].target = self;
+    [viewMenu addItemWithTitle:@"Schrift verkleinern"   action:@selector(menuFontSmaller:) keyEquivalent:@"-"].target = self;
+    [viewMenu addItemWithTitle:@"Schriftgröße zurücksetzen" action:@selector(menuFontReset:) keyEquivalent:@"0"].target = self;
     [viewMenu addItem:[NSMenuItem separatorItem]];
-    [viewMenu addItemWithTitle:@"Word Wrap" action:@selector(menuToggleWrap:) keyEquivalent:@""].target = self;
-    [viewMenu addItemWithTitle:@"Edge Column at 80" action:@selector(menuToggleEdgeColumn:) keyEquivalent:@""].target = self;
+    [viewMenu addItemWithTitle:@"Zeilenumbruch" action:@selector(menuToggleWrap:) keyEquivalent:@""].target = self;
+    [viewMenu addItemWithTitle:@"Randspalte bei 80" action:@selector(menuToggleEdgeColumn:) keyEquivalent:@""].target = self;
     [viewMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *palette = [viewMenu addItemWithTitle:@"Command Palette"
+    NSMenuItem *palette = [viewMenu addItemWithTitle:@"Befehlspalette"
                                               action:@selector(menuCommandPalette:)
                                        keyEquivalent:@"P"];   // ⌘⇧P
     palette.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
@@ -365,15 +367,27 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     colMode.target = self;
 
     [viewMenu addItem:[NSMenuItem separatorItem]];
-    [viewMenu addItemWithTitle:@"Compare Files…" action:@selector(menuCompare:) keyEquivalent:@""].target = self;
+    [viewMenu addItemWithTitle:@"Dateien vergleichen…" action:@selector(menuCompare:) keyEquivalent:@""].target = self;
+
+    NSMenuItem *logAnalysis = [viewMenu addItemWithTitle:@"Log-Analyse…"
+                                                  action:@selector(menuLogAnalysis:)
+                                           keyEquivalent:@"l"];
+    logAnalysis.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    logAnalysis.target = self;
+
+    NSMenuItem *configAnalysis = [viewMenu addItemWithTitle:@"Konfig-Analyse…"
+                                                     action:@selector(menuConfigAnalysis:)
+                                              keyEquivalent:@"k"];
+    configAnalysis.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    configAnalysis.target = self;
 
     // ── Window menu ───────────────────────────────────────────────────────
-    NSMenuItem *winItem = [[NSMenuItem alloc] initWithTitle:@"Window" action:nil keyEquivalent:@""];
+    NSMenuItem *winItem = [[NSMenuItem alloc] initWithTitle:@"Fenster" action:nil keyEquivalent:@""];
     [mainMenu addItem:winItem];
-    NSMenu *winMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+    NSMenu *winMenu = [[NSMenu alloc] initWithTitle:@"Fenster"];
     winItem.submenu = winMenu;
-    [winMenu addItemWithTitle:@"Minimize" action:@selector(miniaturize:) keyEquivalent:@"m"];
-    [winMenu addItemWithTitle:@"Zoom"     action:@selector(zoom:)        keyEquivalent:@""];
+    [winMenu addItemWithTitle:@"Im Dock ablegen" action:@selector(miniaturize:) keyEquivalent:@"m"];
+    [winMenu addItemWithTitle:@"Zoomen"          action:@selector(zoom:)        keyEquivalent:@""];
     [NSApp setWindowsMenu:winMenu];
 }
 
@@ -384,7 +398,7 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithCapacity:count];
     for (NSInteger i = 0; i < count; i++) {
         NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
-        [titles addObject:item.label ?: @"Untitled"];
+        [titles addObject:item.label ?: @"Unbenannt"];
     }
     _tabBar.tabTitles   = titles;
     NSInteger selIdx = [_tabView indexOfTabViewItem:_tabView.selectedTabViewItem];
@@ -926,7 +940,7 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     [_recentFilesMenu removeAllItems];
     NSArray *paths = [[NSUserDefaults standardUserDefaults] arrayForKey:kRecentFilesKey] ?: @[];
     if (paths.count == 0) {
-        NSMenuItem *empty = [[NSMenuItem alloc] initWithTitle:@"No Recent Files" action:nil keyEquivalent:@""];
+        NSMenuItem *empty = [[NSMenuItem alloc] initWithTitle:@"Keine letzten Dateien" action:nil keyEquivalent:@""];
         empty.enabled = NO;
         [_recentFilesMenu addItem:empty];
         return;
@@ -940,7 +954,7 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
         [_recentFilesMenu addItem:item];
     }
     [_recentFilesMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *clear = [[NSMenuItem alloc] initWithTitle:@"Clear Recent Files" action:@selector(menuClearRecents:) keyEquivalent:@""];
+    NSMenuItem *clear = [[NSMenuItem alloc] initWithTitle:@"Letzte Dateien löschen" action:@selector(menuClearRecents:) keyEquivalent:@""];
     clear.target = self;
     [_recentFilesMenu addItem:clear];
 }
@@ -1031,8 +1045,8 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
 - (IBAction)menuCompare:(id)sender {
     if (_tabView.numberOfTabViewItems < 2) {
         NSAlert *a = [NSAlert new];
-        a.messageText     = @"Compare Files";
-        a.informativeText = @"Open at least two files to compare.";
+        a.messageText     = @"Dateien vergleichen";
+        a.informativeText = @"Mindestens zwei Dateien öffnen um zu vergleichen.";
         [a runModal];
         return;
     }
@@ -1041,7 +1055,7 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     NSMutableArray<NSString *> *titles = [NSMutableArray array];
     for (NSInteger i = 0; i < _tabView.numberOfTabViewItems; i++) {
         NSTabViewItem *item = [_tabView tabViewItemAtIndex:i];
-        [titles addObject:item.label ?: @"Untitled"];
+        [titles addObject:item.label ?: @"Unbenannt"];
     }
 
     // Accessory view with two pop-up buttons
@@ -1067,7 +1081,7 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
     [acc addSubview:pop1]; [acc addSubview:pop2];
 
     NSAlert *alert = [NSAlert new];
-    alert.messageText     = @"Compare Files";
+    alert.messageText     = @"Dateien vergleichen";
     alert.informativeText = @"Wähle zwei Dateien zum Vergleichen:";
     alert.accessoryView   = acc;
     [alert addButtonWithTitle:@"Vergleichen"];
@@ -1099,6 +1113,60 @@ static NSString *NMShortEncodingName(NSStringEncoding enc, BOOL bom) {
                rightTitle:titleR rightText:textR];
     [_compareControllers addObject:cv];
     [cv showWindow:nil];
+}
+
+// MARK: – Log-Analyse
+
+- (IBAction)menuLogAnalysis:(id)sender {
+    EditorViewController *evc = [self currentEditor];
+    NSString *text = evc ? [evc currentContent] : @"";
+    NSString *path = evc.document.fileURL.path;
+    [[LogAnalysisPanel shared] showWithText:text filePath:path];
+}
+
+// MARK: – Konfig-Analyse
+
+- (IBAction)menuConfigAnalysis:(id)sender {
+    EditorViewController *evc = [self currentEditor];
+    if (!evc) return;
+
+    NSString *text = [evc currentContent];
+    NSDictionary *parsed = [[NMConfigParserRegistry shared] parseConfig:text];
+    if (!parsed) {
+        NSAlert *a = [NSAlert new];
+        a.messageText     = @"Konfig-Analyse";
+        a.informativeText = @"Der Inhalt wurde von keinem bekannten Vendor-Parser als Konfiguration erkannt.";
+        [a runModal];
+        return;
+    }
+
+    NSError *err = nil;
+    NSData *jsonData = NMConfigToJSONData(parsed, &err);
+    if (!jsonData) {
+        NSAlert *a = [NSAlert alertWithError:err ?: [NSError errorWithDomain:NSCocoaErrorDomain
+                                                                        code:0
+                                                                    userInfo:nil]];
+        [a runModal];
+        return;
+    }
+
+    NSString *json = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+
+    // Determine a readable tab title
+    NSString *sourceName = evc.document.fileURL.lastPathComponent ?: @"config";
+    NSString *tabTitle   = [sourceName stringByDeletingPathExtension];
+    tabTitle = [tabTitle stringByAppendingString:@".json"];
+
+    Document *doc = [[Document alloc] initUntitled];
+    doc.content   = json;
+    [self openDocument:doc];
+
+    // Rename the tab to reflect the source file
+    NSTabViewItem *item = _tabView.selectedTabViewItem;
+    if (item) {
+        item.label = tabTitle;
+        [self syncTabBar];
+    }
 }
 
 @end

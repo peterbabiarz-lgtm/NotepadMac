@@ -17,14 +17,17 @@ Ein nativer macOS Text-Editor inspiriert von [Notepad++](https://notepad-plus-pl
 - **Auto-Save** beim Fokusverlust (nur bereits gespeicherte Dateien)
 - **Dateivergleich** (Ansicht → Dateien vergleichen…) – vertikale Split-Ansicht mit farbiger Diff-Hervorhebung (grün = hinzugefügt, rot = gelöscht, orange = geändert) und synchronem Scrollen
 - **Brace-Matching** – passende Klammern `{[()]}` werden beim Cursor farbig hervorgehoben (blau = gefunden, rot = kein Match)
-- **Linienlängen-Guide** (Ansicht → Edge Column at 80) – vertikale Orientierungslinie bei Spalte 80, umschaltbar
-- **EOL-Konvertierung** (Format → Line Endings) – zwischen Unix (LF), Windows (CRLF) und Classic Mac (CR) konvertieren; aktueller Modus in der Statusleiste sichtbar
+- **Linienlängen-Guide** (Darstellung → Randspalte bei 80) – vertikale Orientierungslinie bei Spalte 80, umschaltbar
+- **EOL-Konvertierung** (Format → Zeilenenden) – zwischen Unix (LF), Windows (CRLF) und Classic Mac (CR) konvertieren; aktueller Modus in der Statusleiste sichtbar
 - **Tab-Close-Buttons** – jeder Tab hat ein × direkt auf dem Tab zum sofortigen Schließen; × erscheint immer auf dem aktiven Tab und bei Hover auf inaktiven Tabs
 - **Datei-Drag-and-Drop** – Dateien aus dem Finder direkt ins Editor-Fenster ziehen zum Öffnen
 - **Erweiterte Suche & Ersetzen** – Inline-Suchleiste (⌘F) mit Regex, Ganzwort- und Groß-/Kleinschreibung-Optionen, Einzelersetzung, Treffer-Zähler und Live-Hervorhebung aller Treffer
 - **Automatische/umschaltbare Zeichenkodierung** – BOM-Erkennung (UTF-8/16/32) plus Foundation-Heuristik beim Öffnen; per Statusleisten-Button oder Format-Menü umschaltbar (Konvertieren / Neu laden): UTF-8, UTF-8 BOM, UTF-16 LE/BE, ISO Latin-1, Windows-1250/1251/1252, Shift-JIS, EUC-JP, Mac Roman
-- **Code-Faltung** (Ansicht → Falten umschalten ⌘. / Alle falten / Alle entfalten) – auch per Klick auf den Faltungsrand
-- **Spaltenmodus / Blockauswahl** (Ansicht → Spaltenmodus ⌥⌘B) – rechteckige Selektion und spaltenweises Bearbeiten; alternativ per ⌥-Ziehen
+- **Code-Faltung** (Darstellung → Falten umschalten ⌘. / Alle falten / Alle entfalten) – auch per Klick auf den Faltungsrand
+- **Spaltenmodus / Blockauswahl** (Darstellung → Spaltenmodus ⌥⌘B) – rechteckige Selektion und spaltenweises Bearbeiten; alternativ per ⌥-Ziehen
+- **Log-Analyse** (Darstellung → Log-Analyse… ⌥⌘L) – strukturiertes Parsen von Netzwerk-/Security-Logs (FortiGate, Cisco ASA); Tabelle mit Zeitstempel, Aktion (farbig), Quell-/Ziel-IP und -Port; frei wählbare Zusatzspalten aus allen vorhandenen Feldern; Live-Filter; Doppelklick springt zur Quellzeile im Editor
+- **Konfig-Analyse** (Darstellung → Konfig-Analyse… ⌥⌘K) – parst FortiGate CLI-Konfigurationsdateien (`config/edit/set/next/end`) und öffnet das Ergebnis als formatiertes JSON in einem neuen Tab; unterstützt verschachtelte Blöcke, fehlendes `next`/`end`, `unset` und beliebige ID-Typen
+- **Vollständig deutsches Menü** – alle Menüpunkte einheitlich auf Deutsch (Ablage, Bearbeiten, Format, Darstellung, Fenster)
 
 ## Installation
 
@@ -185,6 +188,42 @@ Ein Security-Audit (Schwachstellen, unsichere Muster, Angriffsfläche) führte z
 | 7 | `Makefile` | Unsigniertes Binary ohne Laufzeit-Schutz | Ad-hoc-Code-Signing + **Hardened Runtime** (`flags=0x10002(adhoc,runtime)`); via `make CODESIGN_ID="Developer ID…"` mit echtem Zertifikat signierbar |
 
 **Hinweise zur Distribution:** Das Release ist ad-hoc signiert mit Hardened Runtime, aber **nicht notarisiert** (erfordert eine kostenpflichtige Apple Developer ID) – daher weiterhin **Rechtsklick → Öffnen** beim ersten Start. Die **App-Sandbox** ist bewusst noch nicht aktiviert: Sie würde die Compare-Funktion (`NSTask` → `/usr/bin/diff`) sowie „Zuletzt geöffnet"/Session-Wiederherstellung (benötigt Security-Scoped Bookmarks) brechen – eine saubere Sandbox-Migration ist als eigener Schritt geplant.
+
+### v1.8.0 – Log-Analyse & Konfig-Analyse
+
+Zwei neue Analyse-Werkzeuge für Netzwerk-/Security-Umgebungen:
+
+**Log-Analyse-Panel** (`LogParser.h/mm`, `LogAnalysisPanel.h/mm`):
+
+| Komponente | Beschreibung |
+|------------|-------------|
+| `NMLogParser`-Protokoll | Plugin-Interface: `vendorName`, `canParseLine:`, `parseLine:` |
+| `NMBaseLogParser` | Zeichenweiser `key=value`-Tokenizer (kein Regex, kein ReDoS-Risiko); unterstützt `\"`/`\\`-Escapes und Tab-Trenner |
+| `NMFortiGateLogParser` | Erkennt FortiGate-Logs (Signatur `logid=` + `type=`); normalisiert Felder in Gruppen: `timestamp`, `network` (IP/Port/Interface), `counters` (Bytes/Pakete/Dauer), Standard-Identitätsfelder |
+| `NMCiscoASALogParser` | Erkennt `%ASA-`-Präfix; extrahiert Severity, Message-ID und Body |
+| `NMLogParserRegistry` | `dispatch_once`-Singleton; Auto-Detect per `canParseLine:`; Named-Lookup per Vendor-Name |
+| Log-Analyse-Panel | Floating-Panel (⌥⌘L) mit NSTableView; feste Spalten: Zeile, Vendor, Zeitstempel, Aktion, Quell-IP, Quell-Port, Ziel-IP, Ziel-Port; freie Zusatzspalten aus allen Feldern per „Spalten…"-Menü (Toggle, Alle/Keine); Live-Filter; Doppelklick → Zeile im Editor + Detailpopover |
+
+**Konfig-Analyse** (`ConfigParser.h/mm`):
+
+| Komponente | Beschreibung |
+|------------|-------------|
+| `NMConfigParser`-Protokoll | Plugin-Interface: `vendorName`, `canParseConfig:`, `parseConfig:` |
+| `NMFortiGateConfigParser` | Stack-basierter State-Machine-Parser für FortiGate CLI-Syntax (`config/edit/set/unset/next/end`); unterstützt verschachtelte Blöcke, fehlendes `next`/`end`, integer- und string-IDs, `\"` / `\\`-Escapes |
+| `NMConfigParserRegistry` | Wie `NMLogParserRegistry`; neue Vendoren per `registerParser:` |
+| Konfig-Analyse-Menü | ⌥⌘K öffnet aktuelles Dokument als JSON in neuem Tab; Auto-Detect via Registry; „nicht erkannt"-Meldung statt leerem JSON |
+
+### v1.8.1 – Parser-Härtung & Architektur
+
+Gezielte Verbesserungen ohne Rewrite (alle Smoke-Tests bestätigt):
+
+| Bereich | Änderung |
+|---------|----------|
+| **Robustheit** | Escaped Quotes (`\"`, `\\`) in beiden Tokenizern korrekt verarbeitet; `unset key` entfernt gesetzten Wert; Integer-ID-Erkennung round-trip-sicher (`007` und `port1` bleiben Strings); Crash-Bug gefixt: leerer Stack + `NMConfigFrameKindSection == 0` → `removeLastObject` past-the-end |
+| **Performance** | Beide Zeichenschleifen auf `CFStringInlineBuffer` umgestellt (O(1)-Zugriff, kein ObjC-Overhead pro Zeichen); `parseConfig:` streamt Zeilen per `enumerateLinesUsingBlock:` statt ein vollständiges `NSArray` zu materialisieren (Speicher-O(1) statt O(n) für große Configs) |
+| **Extensibilität** | `NMConfigParserRegistry` + `canParseConfig:` hinzugefügt (spiegelt `NMLogParserRegistry`); Log-Analyse-Panel nutzt generischen Key=Value-Tokenizer als Fallback für unerkannte Formate, sodass alle Felder als Spalten verfügbar bleiben |
+| **Tab-Separator** | Log-Tokenizer akzeptiert jetzt Tabulator als Feldtrenner (neben Space) |
+| **Deutsches Menü** | Alle Menüpunkte vollständig auf Deutsch: Ablage, Bearbeiten, Format, Darstellung, Fenster inkl. aller Untermenüs und Dialoge |
 
 ## Lizenz
 
