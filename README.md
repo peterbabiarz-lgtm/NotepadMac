@@ -35,7 +35,7 @@ Ein nativer macOS Text-Editor inspiriert von [Notepad++](https://notepad-plus-pl
 2. ZIP entpacken und `NotepadMac.app` nach `/Applications` ziehen
 3. Beim ersten Start: **Rechtsklick → Öffnen** (Gatekeeper-Warnung, da nicht notarisiert)
 
-**Voraussetzungen:** macOS 13 Ventura oder neuer, Apple Silicon (ARM64)
+**Voraussetzungen:** macOS 13 Ventura oder neuer · Universal Binary (Apple Silicon **und** Intel x86_64)
 
 ## Als Standard-Editor setzen
 
@@ -225,6 +225,20 @@ Gezielte Verbesserungen ohne Rewrite (alle Smoke-Tests bestätigt):
 | **Tab-Separator** | Log-Tokenizer akzeptiert jetzt Tabulator als Feldtrenner (neben Space) |
 | **Deutsches Menü** | Alle Menüpunkte vollständig auf Deutsch: Ablage, Bearbeiten, Format, Darstellung, Fenster inkl. aller Untermenüs und Dialoge |
 
+### v1.8.2 – Audit, Release-Hygiene & Performance
+
+Vollständiges Projekt-Audit (Security, Stabilität, Performance, Architektur) mit anschließenden, gezielten Fixes. Keine neuen Features.
+
+| Bereich | Änderung |
+|---------|----------|
+| **Lizenz / Open Source** | `LICENSE` (MIT) und `NOTICE` (Scintilla/Lexilla-Lizenz HPND + Notepad++-Abgrenzung) ergänzt – das Projekt ist jetzt offiziell quelloffen nutzbar |
+| **Stabilität** | `SearchEngine.mm`: 256-MB-Größenlimit pro Datei beim „In Dateien suchen" – zuvor wurde jede Treffer-Datei ungeprüft komplett in den RAM gelesen (OOM-Risiko bei sehr großen Dateien im Suchbaum); spiegelt das bestehende Öffnen-Limit aus `Document.mm` |
+| **Stabilität** | Assertions im Release deaktiviert (`-DNDEBUG -DNS_BLOCK_ASSERTIONS=1`) – eine `NSCAssert` (z. B. Hex-Farb-Parsing in `ThemeManager`) kann die ausgelieferte App nicht mehr abbrechen; Debug-`NSLog` aus der Log-Analyse entfernt (loggte Dateipfad + Inhaltslänge) |
+| **Performance** | `LogAnalysisPanel.mm`: Log-Parsing in einen Hintergrund-Thread verlagert (reine `parseText:intoRows:availableKeys:`-Funktion + Main-Thread-Orchestrator) – große Logdateien frieren die Oberfläche nicht mehr ein; Status „Parse Log…" während der Verarbeitung |
+| **Distribution** | Universal Binary (`ARCHS = -arch arm64 -arch x86_64` auf Compile + Link) – läuft jetzt nativ auf Apple Silicon **und** Intel-Macs |
+
 ## Lizenz
 
-MIT
+NotepadMac steht unter der **MIT-Lizenz** – siehe [`LICENSE`](LICENSE).
+
+Die eingebundenen Komponenten **Scintilla** und **Lexilla** unterliegen ihrer eigenen (permissiven, HPND-artigen) Lizenz; die vollständigen Bedingungen und Hinweise zu Drittanbieter-Code stehen in [`NOTICE`](NOTICE).
