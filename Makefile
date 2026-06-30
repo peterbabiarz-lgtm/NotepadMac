@@ -15,9 +15,13 @@ RES_DIR     := $(CONTENTS)/Resources
 
 # ── Compiler ─────────────────────────────────────────────────────────────────
 CXX         := clang++
+# Build a universal binary so the app runs natively on both Apple Silicon and
+# Intel Macs. Override for a single-arch build, e.g.:  make ARCHS="-arch arm64"
+ARCHS       ?= -arch arm64 -arch x86_64
 # -DNDEBUG disables C assert(); -DNS_BLOCK_ASSERTIONS=1 disables NSAssert/NSCAssert.
 # This is a release build — an assertion must never abort the shipping app.
 CXXFLAGS    := -std=c++17 -O2 -fPIC \
+               $(ARCHS) \
                -DNDEBUG -DNS_BLOCK_ASSERTIONS=1 \
                -I$(SCI_DIR)/include \
                -I$(SCI_DIR)/src \
@@ -34,7 +38,8 @@ OBJCXXFLAGS := $(CXXFLAGS) -x objective-c++
 WARNINGS    := -Wall -Wno-unused-parameter -Wno-deprecated-declarations \
                -Wno-c99-designator
 
-LDFLAGS     := -framework Cocoa \
+LDFLAGS     := $(ARCHS) \
+               -framework Cocoa \
                -framework AppKit \
                -framework Carbon \
                -framework IOKit \

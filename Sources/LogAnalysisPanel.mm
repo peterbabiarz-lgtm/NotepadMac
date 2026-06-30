@@ -118,11 +118,10 @@ static NSArray<NSArray *> *NMFixedColumns(void) {
 - (void)showWithText:(NSString * _Nonnull)text filePath:(NSString * _Nullable)filePath {
     _currentText = text;
     _currentPath = filePath;
-    [self parseText:text];
-    [self applyFilter];
     NSString *name = filePath.lastPathComponent ?: @"aktuelles Dokument";
     self.window.title = [NSString stringWithFormat:@"Log-Analyse — %@", name];
     [self showWindow:nil];
+    [self reparse];   // parses on a background queue, applies results on main
 }
 
 // MARK: – Parsing
@@ -143,10 +142,46 @@ static NSArray<NSArray *> *NMFixedColumns(void) {
     return [out copy];
 }
 
-- (void)parseText:(NSString *)text {
-    [_allRows removeAllObjects];
-    [_availableOptKeys removeAllObjects];
+// Orchestrator: parse the current text on a background queue, then apply the
+// results (ivars + UI) back on the main thread. Keeps a large log from freezing
+// the UI — the parse loop below used to run synchronously on the main thread.
+- (void)reparse {
+    NSString *text = _currentText ?: @"";
+    _statusLabel.stringValue = @"Parse Log…";
+    _parseBtn.enabled = NO;
 
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray<NMLogRow *> *rows = [NSMutableArray array];
+        NSMutableOrderedSet<NSString *> *keys = [NSMutableOrderedSet orderedSet];
+        [self parseText:text intoRows:rows availableKeys:keys];
+
+        // Sort the optional column keys off the main thread too.
+        NSArray *sortedKeys = [keys.array sortedArrayUsingSelector:@selector(compare:)];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [_allRows setArray:rows];
+            [_availableOptKeys removeAllObjects];
+            [_availableOptKeys addObjectsFromArray:sortedKeys];
+
+            // Drop active optional columns that are no longer present.
+            NSMutableOrderedSet *toRemove = [NSMutableOrderedSet orderedSet];
+            for (NSString *k in _activeOptKeys)
+                if (![_availableOptKeys containsObject:k]) [toRemove addObject:k];
+            [_activeOptKeys minusOrderedSet:toRemove];
+
+            [self rebuildOptionalColumns];
+            [self applyFilter];
+            _parseBtn.enabled = YES;
+        });
+    });
+}
+
+// Pure parse step: turns log text into row objects and collects the optional
+// column keys seen. Touches no ivars and no UI, so it is safe to run off the
+// main thread from -reparse.
+- (void)parseText:(NSString *)text
+         intoRows:(NSMutableArray<NMLogRow *> *)outRows
+    availableKeys:(NSMutableOrderedSet<NSString *> *)outKeys {
     // Keys that are fixed columns — don't offer them as optional
     NSSet *fixedKeys = [NSSet setWithArray:@[
         @"timestamp", @"action", @"srcip", @"srcport", @"dstip", @"dstport"
@@ -190,23 +225,10 @@ static NSArray<NSArray *> *NMFixedColumns(void) {
         // Collect optional keys from whatever we parsed
         for (NSString *k in row.fields) {
             if (![fixedKeys containsObject:k] && ![k hasPrefix:@"_"])
-                [_availableOptKeys addObject:k];
+                [outKeys addObject:k];
         }
-        [_allRows addObject:row];
+        [outRows addObject:row];
     }
-
-    // Sort available optional keys alphabetically
-    NSArray *sorted = [_availableOptKeys.array sortedArrayUsingSelector:@selector(compare:)];
-    [_availableOptKeys removeAllObjects];
-    [_availableOptKeys addObjectsFromArray:sorted];
-
-    // Remove active optional keys that are no longer available
-    NSMutableOrderedSet *toRemove = [NSMutableOrderedSet orderedSet];
-    for (NSString *k in _activeOptKeys)
-        if (![_availableOptKeys containsObject:k]) [toRemove addObject:k];
-    [_activeOptKeys minusOrderedSet:toRemove];
-
-    [self rebuildOptionalColumns];
 }
 
 // MARK: – Dynamic columns
@@ -347,7 +369,7 @@ static NSArray<NSArray *> *NMFixedColumns(void) {
 
 - (IBAction)filterChanged:(id)sender   { [self applyFilter]; }
 - (IBAction)reparseAction:(id)sender {
-    if (_currentText) { [self parseText:_currentText]; [self applyFilter]; }
+    if (_currentText) [self reparse];
 }
 
 - (IBAction)showColumnsMenu:(id)sender {
