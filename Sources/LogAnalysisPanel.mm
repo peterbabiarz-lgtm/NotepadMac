@@ -116,15 +116,12 @@ static NSArray<NSArray *> *NMFixedColumns(void) {
 }
 
 - (void)showWithText:(NSString * _Nonnull)text filePath:(NSString * _Nullable)filePath {
-    NSLog(@"[LogAnalysis] showWithText called, textLen=%lu path=%@",
-          (unsigned long)text.length, filePath);
     _currentText = text;
     _currentPath = filePath;
     [self parseText:text];
     [self applyFilter];
     NSString *name = filePath.lastPathComponent ?: @"aktuelles Dokument";
     self.window.title = [NSString stringWithFormat:@"Log-Analyse — %@", name];
-    NSLog(@"[LogAnalysis] window=%@ visible=%d", self.window, self.window.isVisible);
     [self showWindow:nil];
 }
 

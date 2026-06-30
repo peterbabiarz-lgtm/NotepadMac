@@ -1,0 +1,51 @@
+NotepadMac — Third-Party Notices
+=================================
+
+NotepadMac itself is licensed under the MIT License (see LICENSE).
+
+This application links against and bundles the following third-party
+components, which are distributed under their own licenses. Their copyright
+notices and license terms are reproduced below.
+
+
+-------------------------------------------------------------------------------
+Scintilla and Lexilla
+-------------------------------------------------------------------------------
+
+Scintilla (editing component) and Lexilla (lexer library) are used to provide
+the text editing surface and syntax highlighting. They are obtained from the
+Notepad++ source distribution (tag v8.9.6.4) at build time and are NOT part of
+this repository.
+
+  Project: https://www.scintilla.org/
+           https://www.scintilla.org/Lexilla.html
+
+License for Scintilla and Lexilla:
+
+  Copyright 1998-2024 by Neil Hodgson <neilh@scintilla.org>
+  All Rights Reserved
+
+  Permission to use, copy, modify, and distribute this software and its
+  documentation for any purpose and without fee is hereby granted, provided
+  that the above copyright notice appear in all copies and that both that
+  copyright notice and this permission notice appear in supporting
+  documentation.
+
+  NEIL HODGSON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+  INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
+  EVENT SHALL NEIL HODGSON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+  DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+  OF THIS SOFTWARE.
+
+
+-------------------------------------------------------------------------------
+Notepad++ (inspiration only)
+-------------------------------------------------------------------------------
+
+NotepadMac is inspired by Notepad++ (https://notepad-plus-plus.org/) but does
+not incorporate any Notepad++ source code. Notepad++ is a separate project
+licensed under the GPL; no Notepad++ code is included in or derived by this
+software. Only the bundled Scintilla/Lexilla components originate from the
+Notepad++ source archive, under the license stated above.

@@ -1,5 +1,12 @@
 #import "SearchEngine.h"
 
+// Skip files larger than this when scanning a directory. Each candidate file is
+// read fully into memory as an NSString, so without a cap a single multi-GB file
+// in the search tree could exhaust RAM and crash the app. Mirrors the open-file
+// limit enforced in Document (256 MB) — a file that large is never a useful
+// text-search target anyway.
+static const unsigned long long kMaxSearchFileSize = 256ULL * 1024 * 1024;  // 256 MB
+
 @implementation SearchOptions
 - (instancetype)init {
     self = [super init];
@@ -119,7 +126,7 @@
     NSDirectoryEnumerationOptions enumOpts = opts.recursive ? 0 : NSDirectoryEnumerationSkipsSubdirectoryDescendants;
     NSDirectoryEnumerator<NSURL *> *enumerator =
         [fm enumeratorAtURL:[NSURL fileURLWithPath:directory]
- includingPropertiesForKeys:@[NSURLIsRegularFileKey, NSURLIsHiddenKey]
+ includingPropertiesForKeys:@[NSURLIsRegularFileKey, NSURLIsHiddenKey, NSURLFileSizeKey]
                     options:enumOpts
                errorHandler:nil];
 
@@ -147,6 +154,12 @@
             }
             if (!matched) continue;
         }
+
+        // Skip oversized files before reading — guards against memory exhaustion
+        // on a stray huge file in the search tree (see kMaxSearchFileSize).
+        NSNumber *fileSize;
+        [url getResourceValue:&fileSize forKey:NSURLFileSizeKey error:nil];
+        if (fileSize && fileSize.unsignedLongLongValue > kMaxSearchFileSize) continue;
 
         scanned++;
         NSString *path = url.path;

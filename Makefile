@@ -15,7 +15,10 @@ RES_DIR     := $(CONTENTS)/Resources
 
 # ── Compiler ─────────────────────────────────────────────────────────────────
 CXX         := clang++
+# -DNDEBUG disables C assert(); -DNS_BLOCK_ASSERTIONS=1 disables NSAssert/NSCAssert.
+# This is a release build — an assertion must never abort the shipping app.
 CXXFLAGS    := -std=c++17 -O2 -fPIC \
+               -DNDEBUG -DNS_BLOCK_ASSERTIONS=1 \
                -I$(SCI_DIR)/include \
                -I$(SCI_DIR)/src \
                -I$(SCI_DIR)/cocoa \
