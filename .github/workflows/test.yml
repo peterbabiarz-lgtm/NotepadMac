@@ -1,0 +1,18 @@
+name: Tests
+
+# Runs the Foundation-only unit suite on every push and PR. The tests do not
+# depend on Scintilla/Lexilla or Xcode, so no source download or setup is
+# needed — the Command Line Tools on the macOS runner are enough.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: make test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run unit tests
+        run: make test
