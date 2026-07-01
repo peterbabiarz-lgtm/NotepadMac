@@ -247,6 +247,13 @@ Vollständiges Projekt-Audit (Security, Stabilität, Performance, Architektur) m
 | **Performance** | `LogAnalysisPanel.mm`: Log-Parsing in einen Hintergrund-Thread verlagert (reine `parseText:intoRows:availableKeys:`-Funktion + Main-Thread-Orchestrator) – große Logdateien frieren die Oberfläche nicht mehr ein; Status „Parse Log…" während der Verarbeitung |
 | **Distribution** | Universal Binary (`ARCHS = -arch arm64 -arch x86_64` auf Compile + Link) – läuft jetzt nativ auf Apple Silicon **und** Intel-Macs |
 
+### v1.8.3 – Crash-Fix: Absturz beim Öffnen von .m/.mm-Dateien
+
+| Bereich | Änderung |
+|---------|----------|
+| **Crash-Fix** | `.m`/`.mm`-Dateien nutzten den Lexilla-Lexer `"objc"`, dessen Fold-Funktion (`FoldObjCDoc`) Keyword-Listen-Slots liest, die die App nie befüllt hat – das führte beim ersten Zeichnen des Editors zu einem Null-Pointer-Zugriff und Absturz (`EXC_BAD_ACCESS`, `SIGSEGV`). `LexerManager.mm` nutzt jetzt den `"cpp"`-Lexer für `.m`/`.mm` (gleiche `LexCPP.cxx`-Implementierung und Style-IDs wie C/C++, ohne den defekten Fold-Pfad) |
+| **Nebeneffekt behoben** | `.m`/`.mm`-Dateien hatten dadurch bisher auch **keine** Syntax-Färbung (kein `"objc"`-Zweig in `applyLanguageColors:`); mit dem `"cpp"`-Lexer werden Objective-C++-Dateien jetzt korrekt eingefärbt |
+
 ## Lizenz
 
 NotepadMac steht unter der **MIT-Lizenz** – siehe [`LICENSE`](LICENSE).

@@ -20,7 +20,14 @@
     _extToLexer = @{
         @"c":    @"cpp",   @"h":    @"cpp",   @"cpp": @"cpp",
         @"cxx":  @"cpp",   @"cc":   @"cpp",   @"hpp": @"cpp",
-        @"m":    @"objc",  @"mm":   @"objc",
+        // Use the "cpp" lexer (not "objc") for .m/.mm: both share the same
+        // LexCPP.cxx implementation and style IDs, but "objc"'s fold function
+        // (FoldObjCDoc) reads keyword-list slots this app never populates,
+        // dereferencing a null word array and crashing on first paint. "cpp"
+        // uses the same highlighting without that fold path — and as a bonus
+        // actually colors .m/.mm syntax, which "objc" never did (no "objc"
+        // branch existed in applyLanguageColors: below).
+        @"m":    @"cpp",   @"mm":   @"cpp",
         @"py":   @"python",@"pyw":  @"python",
         @"js":   @"cpp",   @"ts":   @"cpp",   @"jsx": @"cpp",  @"tsx": @"cpp",
         @"java": @"cpp",
