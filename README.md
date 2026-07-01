@@ -64,6 +64,16 @@ make
 open build/NotepadMac.app
 ```
 
+### Tests
+
+Unit-Tests für die eigenständigen Kern-Bausteine (Modell, Log-/Konfig-Parser, Diff) laufen mit den Command Line Tools – **kein Xcode nötig**, keine Scintilla-Abhängigkeit:
+
+```bash
+make test
+```
+
+Sie nutzen ein winziges Foundation-Test-Harness (`Tests/NMTest.h`) statt XCTest (das nur im vollständigen Xcode enthalten ist), bauen ein eigenständiges Executable und liefern bei Fehlern einen Exit-Code ≠ 0 – damit auch CI-tauglich.
+
 ## Entstehungsgeschichte
 
 Dieses Projekt wurde vollständig von **[Claude](https://claude.ai) (Anthropic)** — konkret dem Modell **Claude Sonnet 4.6** — in einer einzigen Konversation generiert.

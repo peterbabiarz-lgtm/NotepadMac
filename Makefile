@@ -92,7 +92,7 @@ ALL_OBJS := $(SCI_OBJS) $(SCI_COC_OBJS) $(LEX_OBJS) $(APP_OBJS) $(APP_CXX_OBJ)
 CODESIGN_ID ?= -
 
 # ── Targets ──────────────────────────────────────────────────────────────────
-.PHONY: all bundle sign clean run
+.PHONY: all bundle sign clean run test
 
 all: sign
 
@@ -170,3 +170,28 @@ dirs:
 clean:
 	rm -rf $(BUILD_DIR)
 	@echo "Cleaned."
+
+# ── Tests ──────────────────────────────────────────────────────────────────────
+# Unit tests for the self-contained, Foundation-only units (model, parsers,
+# diff) via the tiny NMTest harness (Tests/NMTest.h). They do NOT depend on
+# Scintilla/Lexilla or XCTest, so `make test` builds and runs with only the
+# Command Line Tools — even without the Notepad++ source present (handy for CI).
+# Built host-arch only (no universal flags, no -DNDEBUG) so failed assertions
+# surface during testing.
+TEST_DIR     := $(CURDIR)/Tests
+TEST_BIN     := $(BUILD_DIR)/notepadmac-tests
+TEST_SRCS    := $(wildcard $(TEST_DIR)/*.mm)
+TEST_UNITS   := $(SRC_DIR)/Document.mm \
+                $(SRC_DIR)/LogParser.mm \
+                $(SRC_DIR)/ConfigParser.mm \
+                $(SRC_DIR)/DiffEngine.mm
+
+test:
+	@mkdir -p $(BUILD_DIR)
+	@echo "[TEST] building $(TEST_BIN)"
+	$(CXX) -std=c++17 -fobjc-arc -g -O0 -I$(SRC_DIR) -I$(TEST_DIR) \
+	    $(TEST_SRCS) $(TEST_UNITS) \
+	    -framework Foundation \
+	    -o $(TEST_BIN)
+	@echo "[TEST] running"
+	@$(TEST_BIN)
